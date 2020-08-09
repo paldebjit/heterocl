@@ -361,7 +361,7 @@ void GenKernelCode(std::string& test_file, std::vector<std::string> arg_names,
 
   // create typedef and header 
   if (platform == "vivado_hls" || platform == "sdsoc") { 
-
+    
     // add header file to host code 
     auto pos = test_file.rfind("#include ");
     auto next = test_file.find('\n', pos);
@@ -392,6 +392,8 @@ void GenKernelCode(std::string& test_file, std::vector<std::string> arg_names,
              << kv.second << ";\n";
     }
 
+    header << "// Declaring the kernel" << std::endl;
+    //std::cout << test_file << std::endl;
     // locate top function
     CHECK(test_file.find("test(") != std::string::npos) 
       << "cannot find top function";
@@ -433,6 +435,34 @@ void GenKernelCode(std::string& test_file, std::vector<std::string> arg_names,
     stream << "#include <ap_int.h>\n";
     stream << "#include <ap_fixed.h>\n";
     stream << "#include <hls_math.h>\n";
+  } else if (platform == "intel_hls") {
+
+    // add header file to the kernel code
+    auto pos = test_file.rfind("#include ");
+    auto next = test_file.find("\n", pos);
+    test_file.insert(next + 1, "#include \"kernel.h\"\n\ncomponent\n");
+
+    std::ofstream header;
+    header.open(project + "/kernel.h");
+    header << "#ifndef __KERNEL_H__\n" 
+           << "#define __KERNEL_H__\n\n";
+    header << "#include <HLS/hls.h>\n";
+    header << "#include <HLS/ac_int.h>\n";
+    header << "#include <HLS/ac_fixed.h>\n";
+    header << "#include <HLS/ac_fixed_math.h>\n";
+
+    header << "// Declaring the kernel" << std::endl;
+    //std::cout << test_file << std::endl; 
+    CHECK(test_file.find("test(") != std::string::npos) 
+      << "cannot find top function";
+    size_t dut = test_file.find("test(");
+    size_t begin = test_file.rfind('\n', dut);
+    size_t end = test_file.find(')', dut) + 1;
+
+    header << test_file.substr(begin, end - begin) 
+           << ";\n";
+    header << "\n#endif";
+    header.close();
   }
 
   stream << test_file;
@@ -458,7 +488,7 @@ void GenHostHeaders(std::ofstream& stream,
 )";
   
   if (platform == "sdaccel" || platform == "vitis") {
-    stream << "// opencl harness headers\n";
+    stream << "// OpenCL harness headers\n";
     stream << "#include \"xcl2.hpp\"\n";
     stream << "#include \"ap_fixed.h\"\n";
     stream << "#include \"ap_int.h\"\n";
@@ -467,16 +497,31 @@ void GenHostHeaders(std::ofstream& stream,
 
   } else if (platform == "vivado_hls" || platform == "sdsoc") {
 
-    if (platform == "sdsoc") 
+    if (platform == "sdsoc") {
+      stream << "// SdSOC headers\n";
       stream << "#include \"sds_lib.h\"\n";
+    }
 
-    stream << "// vivado hls headers\n";
+    stream << "// Vivado HLS headers\n";
     stream << "#include <ap_int.h>\n";
     stream << "#include <ap_fixed.h>\n";
+    stream << "#include <ap_axi_sdata.h>\n";
     stream << "#include <hls_stream.h>\n";
+    stream << "#include <math.h>\n";
+    stream << "#include <stdint.h>\n";
+    stream << "#include \"kernel.h\"\n\n";
+
+  } else if (platform == "intel_hls") {
+    stream << "// Intel HLS headers\n";
+    stream << "#include <HLS/hls.h>\n";
+    stream << "#include <HLS/ac_int.h>\n";
+    stream << "#include <HLS/ac_fixed.h>\n";
+    stream << "#include <HLS/ac_fixed_math.h>\n";
+    stream << "#include <math.h>\n";
     stream << "#include \"kernel.h\"\n\n";
 
   } else if (platform == "aocl") {
+    stream << "// AOCL headers\n";
     stream << "#include \"CL/opencl.h\"\n";
     stream << "#pragma message (\"* Compiling for ALTERA CL\")\n";
     stream << "#define AOCX_FILE \"kernel.aocx\"\n\n";

@@ -90,8 +90,8 @@ def test_vivado_hls():
             np.testing.assert_array_equal(ret_B, (np_A+2)*2)
 
     test_hls("csim")
-    test_hls("csyn")
-    test_hls("csim|csyn")
+    #test_hls("csyn")
+    #test_hls("csim|csyn")
 
 def test_mixed_stream():
     if os.system("which vivado_hls >> /dev/null") != 0:
@@ -249,6 +249,45 @@ def test_intel_aocl():
 
     np.testing.assert_array_equal(ret_B, (np_A + 2) * 2)
 
+def test_intel_iplusplus():
+    if os.system("which i++ >> /dev/null") != 0:
+        return
+    
+    # NOTE: I++ can just synthesize or can do a up until PnR
+    def test_iplusplus(target_mode):
+        hcl.init()
+        A = hcl.placeholder((10, 32), "A")
+        def kernel(A):
+            B = hcl.compute(A.shape, lambda *args : A[args] + 1, "B")
+            C = hcl.compute(A.shape, lambda *args : B[args] + 1, "C")
+            D = hcl.compute(A.shape, lambda *args : C[args] + 1, "D")
+            return D
+
+        target = hcl.platform.vlab
+        s = hcl.create_schedule([A], kernel)
+        s.to(kernel.B, target.xcel)
+        s.to(kernel.C, target.host)
+        target.config(compile="intel_hls", backend="vhls", mode=target_mode)
+        f = hcl.build(s, target)
+
+        np_A = np.random.randint(10, size=(10, 32))
+        np_B = np.zeros((10, 32))
+
+        hcl_A = hcl.asarray(np_A)
+        hcl_B = hcl.asarray(np_A, dtype=hcl.Int(32))
+        f(hcl_A, hcl_B)
+        ret_B = hcl_B.asnumpy()
+
+        if 'hw_exe' in target_mode:
+            report = f.report()
+            assert 'Quartus Version' in report 
+        elif 'sw_sim' in target_mode:
+            np.testing.assert_array_equal(ret_B, (np_A + 2) * 2)
+
+    test_iplusplus('hw_exe')
+    #test_iplusplus('qcompile')
+    #test_iplusplus('qsyn|qcompile')
+
 def test_project():
     if os.system("which vivado_hls >> /dev/null") != 0:
         return 
@@ -296,11 +335,12 @@ def test_project():
     assert os.path.isdir("gemm-s2/out.prj")
 
 if __name__ == '__main__':
-    test_placeholders()
-    test_debug_mode()
-    test_vivado_hls()
-    test_mixed_stream()
-    test_vitis()
-    test_xilinx_sdsoc()
-    test_intel_aocl()
-    test_project()
+    #test_placeholders()
+    #test_debug_mode()
+    #test_vivado_hls()
+    #test_mixed_stream()
+    #test_vitis()
+    #test_xilinx_sdsoc()
+    #test_intel_aocl()
+    test_intel_iplusplus()
+    #test_project()

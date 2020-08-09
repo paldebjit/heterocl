@@ -16,12 +16,18 @@ namespace codegen {
 void CodeGenIntelHLS::AddFunction(LoweredFunc f,
         str2tupleMap<std::string, Type> map_arg_type) {
   // Write header files
+  /* They are repetition of the header inclusion from build_util.cc GenHostHeaders
   this->stream << "#include <HLS/hls.h>\n";
   this->stream << "#include <HLS/ac_int.h>\n";
   this->stream << "#include <HLS/ac_fixed.h>\n";
   this->stream << "#include <HLS/ac_fixed_math.h>\n";
   this->stream << "#include <math.h>\n\n";
+  */
+
+  /* The function needs to be analyzed should be enclosed within component for Intel HLS.
+   * Not the main function or the testbench function
   this->stream << "component ";
+  */
   CodeGenHLSC::AddFunction(f, map_arg_type);
 }
 

@@ -223,7 +223,7 @@ dev_table = {
   "vlab"         : [CPU("intel", "e5"), FPGA("intel", "arria10")],
   "zc706"        : [CPU("arm", "a9"), FPGA("xilinx", "xc7z045")],
   "rocc-ppac"    : [CPU("riscv", "riscv"), PIM("ppac", "ppac")],
-  "stratix10_sx" : [CPU("arm", "a53"), FPGA("intel", "stratix10_gx")]
+  "stratix10_sx" : [CPU("arm", "a53"), FPGA("intel", "stratix10_gx")],
 }
 
 class env(type):
@@ -333,6 +333,7 @@ class platform(with_metaclass(env, object)):
                     mode = list(set(new_modes))
                     mode.sort(key=lambda x: modes.index(x))
                     mode = "|".join(mode)
+            
             else:
                 modes = ["sw_sim", "hw_sim", "hw_exe", "debug"]
                 assert mode in modes, \

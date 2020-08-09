@@ -220,6 +220,7 @@ runtime::Module BuildSimModule(Array<LoweredFunc> funcs,
     auto val = values[k].as<StringImm>()->value;
     options[key] = val;
   }
+  
   return runtime::CreateSimModule(
           funcs[0], cg_host.GetHost(), cg_dev.GetDevice(),
           cg_host.GetConfig(), cg_host.arg_names, platform, options);
@@ -256,12 +257,12 @@ TVM_REGISTER_API("codegen.build_sim")
       *rv = BuildSimModule<CodeGenVivadoHLS, CodeGenVivadoHLS>
                 (args[0], args[1], args[2]);
 
-    } else if (type == "aocl") {
+    } else if (type == "aocl" || type == "intel_hls") {
       if (lang == "aocl") {
         *rv = BuildSimModule<CodeGenAOCLHost, CodeGenAOCL>
                   (args[0], args[1], args[2]);
-      } else if (lang == "ihls") {
-        *rv = BuildSimModule<CodeGenAOCLHost, CodeGenIntelHLS>
+      } else if (lang == "vhls") {
+        *rv = BuildSimModule<CodeGenIntelHLS, CodeGenIntelHLS>
                   (args[0], args[1], args[2]);
       } else {
         LOG(FATAL) << "aocl does not support "

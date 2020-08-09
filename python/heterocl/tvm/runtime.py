@@ -1,6 +1,6 @@
 from ._ffi.function import register_func
 import os, subprocess, time, re, glob
-from ..report import parse_xml
+from ..report import parse_xml, parse_js_ipp
 from ..devices import Project
 debug = True
 
@@ -89,6 +89,34 @@ def tvm_callback_exec_evaluate(platform, mode, host_only):
 
         else:
             raise RuntimeError("{} does not support {} mode".format(platform, mode))
+
+    elif platform == "intel_hls":
+        
+        assert os.system("which i++ >> /dev/null") == 0, \
+                "cannot find Intel HLS on system path"
+        ver = run_process("g++ --version", "\d.\d.\d")[0].split(".")
+        assert int(ver[0]) * 10 + int(ver[1]) >= 48, \
+                "g++ version too old {}.{}.{}".format(ver[0], ver[1], ver[2])
+        
+        #if not os.path.isfile(os.path.join(Project.path, "kernel.cpp")):
+        #    replace_text(os.path.join(Project.path,"Makefile"), "kernel.cpp", "")
+        #    replace_text(os.path.join(Project.path,"host.cpp"), "#include \"kernel.h\"", "")
+
+        cmd = "cd {}; ".format(Project.path)
+        if mode == "hw_exe":
+            cmd += " i++ -v kernel.cpp host.cpp -march=Stratix10 --quartus-compile"
+            cmd += " --clock 10ns --simulator none --quartus-seed 123"
+            cmd += " -o out.prj"
+            print("[{}] Begin synthesizing project ...".format(
+                time.strftime("", time.gmtime())))
+            print(cmd)
+            subprocess.Popen(cmd, shell=True).wait()
+            parse_js_ipp(Project.path, print_flag=True)
+
+        else:
+            raise RunTimeError("{} does not support {} mode".format(platform, mode))
+            
+        return "success"
 
     elif platform == "sdsoc":
         assert os.system("which sds++ >> /dev/null") == 0, \
@@ -206,6 +234,12 @@ def copy_and_compile(platform, mode, backend, host_only, cfg, script):
 
         with open(os.path.join(Project.path,"run.tcl"),"w") as tcl_file:
             tcl_file.write(new_tcl)
+        return "success"
+    
+    # copy i++ makefile
+    elif platform == "intel_hls":
+        #os.system("cp " + path + "i++/* " + Project.path)
+        os.system("cp " + path + "harness.mk " + Project.path)
         return "success"
 
     # copy sdsoc makefile

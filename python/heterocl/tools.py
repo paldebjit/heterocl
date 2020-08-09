@@ -16,7 +16,6 @@ option_table = {
   "vitis"   : ("sw_sim", {"version" : "2019.2", "clock" : "1"}),
   "vivado_hls" : ("sw_sim", {"version" : "2017.1"}),
   "rocket"     : ("debug", {"RISCV" : ""}),
-
   # refer to xilinx2016_1/ug904-vivado-implementation.pdf
   "vivado"     : ("pnr",
       {"version" : "2017.1",
@@ -124,6 +123,7 @@ option_table = {
       "tdc_aggressive_hold_closure_effort"           : ['On', 'Off'],
       "allow_register_retiming"                      : ['On', 'Off']}),
 
-  "aocl" : ("sw_sim", {"version" : "17.0", "clock" : "1.5"})
+  "aocl" : ("sw_sim", {"version" : "17.0", "clock" : "1.5"}),
+  "intel_hls" : ("sw_sim", {"version" : "2019.4", "clock" : "1.5"})
 }
 

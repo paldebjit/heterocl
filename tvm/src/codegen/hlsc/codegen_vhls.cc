@@ -33,6 +33,7 @@ class StreamChecker final : public IRVisitor {
 void CodeGenVivadoHLS::AddFunction(LoweredFunc f,
         str2tupleMap<std::string, Type> map_arg_type) {
   // write header files
+  /* They are repetition of the header inclusion from build_util.cc GenHostHeaders
   this->decl_stream << "#include <ap_int.h>\n";
   this->decl_stream << "#include <ap_fixed.h>\n";
   this->decl_stream << "#include <ap_axi_sdata.h>\n";
@@ -40,12 +41,16 @@ void CodeGenVivadoHLS::AddFunction(LoweredFunc f,
   this->decl_stream << "#include <hls_math.h>\n";
   this->decl_stream << "#include <math.h>\n";
   this->decl_stream << "#include <stdint.h>\n";
+  */
 
   // setup codegen mode
   if (map_arg_type.count("sdsoc")) {
     sdsoc_mode = true;
     ptr_mode = true;
+
+    /* They are repetition of the header inclusion from build_util.cc GenHostHeaders
     this->decl_stream << "#include \"sds_lib.h\"\n\n";
+    */
   } else if (map_arg_type.count("sdaccel")) {
     ptr_mode = true;
     this->decl_stream << "\n";
@@ -103,7 +108,7 @@ void CodeGenVivadoHLS::AddFunction(LoweredFunc f,
   this->EndScope(func_scope);
   this->PrintIndent();
   this->stream << "}\n\n";
-
+    
   // close soda header handle
   if (soda_header_.is_open())
     soda_header_.close();

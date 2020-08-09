@@ -57,7 +57,6 @@ def test_set_slice():
     assert "A[0].set_slc(1, ((ac_int<4, false>)1))" in code
 
 def test_get_slice():
-
     A = hcl.placeholder((10,), "A")
     def kernel(A):
         with hcl.Stage("S"):
@@ -66,3 +65,10 @@ def test_get_slice():
     code = hcl.build(s, target="ihls")
     assert "A[0].slc<4>(1)" in code
 
+if __name__ == '__main__':
+    test_ac_int()
+    test_ac_fixed()
+    test_pragma()
+    test_set_bit()
+    test_set_slice()
+    test_get_slice()

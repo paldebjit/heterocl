@@ -24,6 +24,25 @@ def parse_js(path, print_flag=False):
         print("[--------] MLAB : {}".format(MLAB))
     
 
+def parse_js_ipp(path, print_flag=False):
+    js_file = os.path.join(path, "kernel/reports/lib/report_data.js")
+    if not os.path.isfile(js_file):
+        raise RuntimeError("Cannot find {}, run quartus-compile first".format(js_file))
+
+    with open(js_file, "r") as fp:
+        js_scripts = fp.read()
+        regex = "total_kernel_resources.*?(\d+), (\d+), (\d+), (\d+), (\d+)"
+        match = re.findall(regex, js_scripts)
+        print("[{}] Parsing Intel HLS report... ".format(
+            time.strftime("%H:%M:%S", time.gmtime())))
+        LUT, FF, RAM, DSP, MLAB = match[0]
+        print("[--------] ALUT : {}".format(LUT))
+        print("[--------] FF   : {}".format(FF))
+        print("[--------] RAM  : {}".format(RAM))
+        print("[--------] DSP  : {}".format(DSP))
+        print("[--------] MLAB : {}".format(MLAB))
+
+
 def parse_xml(path, print_flag=False):
     xml_file = os.path.join(path, "out.prj", "solution1/syn/report/test_csynth.xml")
     if not os.path.isfile(xml_file):
@@ -76,5 +95,10 @@ def report_stats(target, folder):
     elif target.tool.name == "aocl":
         if os.path.isdir(os.path.join(path, "kernel/reports")):
             return parse_js(path)
+
+    elif target.tool.name == 'intel_hls':
+        if os.path.isdir(os.path.join(path, 'kernel/reports')):
+            return parse_js_ipp(path)
+
     else:
         raise RuntimeError("tool {} not yet supported".format(target.tool.name))

@@ -442,8 +442,8 @@ def build_fpga_kernel(sch, args, target, name="default_function", schedule_name=
         elif target.tool.name == "aocl":
             host = target.host.lang = "aocl"
             xcel = target.xcel.lang = "aocl"
-
-        elif target.tool.name in ("vivado_hls", "sdsoc"):
+        
+        elif target.tool.name in ("vivado_hls", "sdsoc", "intel_hls"):
             host = target.host.lang.replace("hlsc", "vhls")
             xcel = target.xcel.lang.replace("hlsc", "vhls")
 
@@ -455,11 +455,11 @@ def build_fpga_kernel(sch, args, target, name="default_function", schedule_name=
         if "|" in mode:
             modes = mode.split("|")
             for m in modes:
-                assert m in ["csyn", "csim", "cosim", "impl", "custom"], \
+                assert m in ["csyn", "csim", "cosim", "impl", "custom", "qsyn", "qcompile"], \
                     "not supported mode " + m
         else:
             assert mode in ["csyn", "csim", "cosim", "impl", "custom",
-                            "debug", "sw_sim", "hw_sim", "hw_exe"], \
+                            "debug", "sw_sim", "hw_sim", "hw_exe", "qsyn", "qcompile"], \
                     "not supported mode " + mode
 
         if mode == "debug": # return source code only
@@ -472,6 +472,7 @@ def build_fpga_kernel(sch, args, target, name="default_function", schedule_name=
             elif target.tool.name == "sdsoc": target_tool = 1
             elif target.tool.name == "vitis": target_tool = 2
             elif target.tool.name == "vivado_hls": target_tool = 3
+            elif target.tool.name == "intel_hls": target_tool = 4
 
             builder = getattr(codegen, "build_{0}".format(host))
             host_code = builder(fdevice, 1, target_tool)
