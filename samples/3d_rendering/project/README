@@ -6,7 +6,10 @@ kernel_3:   Packing pixels usinf 2D-array
 kernel_4:   Input data packing, pixel packing (using struc), using pragma UNROLL and IVDEP
 kernel_6:   Packing pixels using struct, using pragma IVDEP
 
-The packing structs are available in inc directory.
+3d_rendering.h            : Header file with struct definitions for packing.
+
+main_3d_rendering.cpp:      host code for kernel that does not have any packing at the interface
+main_pack_3d_rendering.cpp: host code for kernel that does have packing at the interface
 
 ## To run please execute the following command:
 qsub -V -lselect=1:ncpus=64 -m abe -M debjit.pal@cornell.edu -q xeon ./build_1.sh
