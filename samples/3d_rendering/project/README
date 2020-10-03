@@ -7,3 +7,6 @@ kernel_4:   Input data packing, pixel packing (using struc), using pragma UNROLL
 kernel_6:   Packing pixels using struct, using pragma IVDEP
 
 The packing structs are available in inc directory.
+
+## To run please execute the following command:
+qsub -V -lselect=1:ncpus=64 -m abe -M debjit.pal@cornell.edu -q xeon ./build_1.sh
