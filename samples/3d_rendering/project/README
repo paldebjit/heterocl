@@ -1,0 +1,9 @@
+## Details of the kernels for the 3d_rendering
+
+kernel_1:   Original HCL generated kernel. No modifications.
+kernel_2:   Packing pixels using struct
+kernel_3:   Packing pixels usinf 2D-array
+kernel_4:   Input data packing, pixel packing (using struc), using pragma UNROLL and IVDEP
+kernel_6:   Packing pixels using struct, using pragma IVDEP
+
+The packing structs are available in inc directory.
