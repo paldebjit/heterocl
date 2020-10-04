@@ -8,3 +8,6 @@ typedef struct {
     int c;
 } pack_t;
 
+typedef struct {
+    int val[16];
+} frame_t;
