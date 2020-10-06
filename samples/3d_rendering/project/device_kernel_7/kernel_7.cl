@@ -13,8 +13,7 @@ __kernel void default_function(__global coord_t* restrict triangle_3d, __global 
 
   int _top;
   int z_buffer[65536];
-  /*int frame_buffer[65536]*/;
-  int frame_buffer[256][256];
+  int frame_buffer[65536];
   for (int x = 0; x < 256; ++x) {
     for (int y = 0; y < 256; ++y) {
       z_buffer[(y + (x * 256))] = 255;
@@ -264,14 +263,22 @@ __kernel void default_function(__global coord_t* restrict triangle_3d, __global 
             /*https://www.intel.com/content/www/us/en/programmable/documentation/ewa1462824960255.html#ewa1462826976357*/
             #pragma ii 1
             for (int i4 = 0; i4 < 256; i4 = i4 + 16) {
-                frame_t data3 = {frame_buffer[i3 + 0], frame_buffer[i3 + 1], 
-                                 frame_buffer[i3 + 2], frame_buffer[i3 + 3], 
-                                 frame_buffer[i3 + 4], frame_buffer[i3 + 5],
-                                 frame_buffer[i3 + 6], frame_buffer[i3 + 7],
-                                 frame_buffer[i3 + 8], frame_buffer[i3 + 9],
-                                 frame_buffer[i3 + 10], frame_buffer[i3 + 11],
-                                 frame_buffer[i3 + 12], frame_buffer[i3 + 13],
-                                 frame_buffer[i3 + 14], frame_buffer[i3 + 15]
+                frame_t data3 = {frame_buffer[i3 * 256 + i4 + 0], 
+                                 frame_buffer[i3 * 256 + i4 + 1],  
+                                 frame_buffer[i3 * 256 + i4 + 2],  
+                                 frame_buffer[i3 * 256 + i4 + 3],  
+                                 frame_buffer[i3 * 256 + i4 + 4],  
+                                 frame_buffer[i3 * 256 + i4 + 5],  
+                                 frame_buffer[i3 * 256 + i4 + 6],  
+                                 frame_buffer[i3 * 256 + i4 + 7],  
+                                 frame_buffer[i3 * 256 + i4 + 8],  
+                                 frame_buffer[i3 * 256 + i4 + 9],  
+                                 frame_buffer[i3 * 256 + i4 + 10],  
+                                 frame_buffer[i3 * 256 + i4 + 11],  
+                                 frame_buffer[i3 * 256 + i4 + 12],  
+                                 frame_buffer[i3 * 256 + i4 + 13],  
+                                 frame_buffer[i3 * 256 + i4 + 14],  
+                                 frame_buffer[i3 * 256 + i4 + 15]  
                                  };  
                 outp[i3 * 256/16 + i4/16] = data3;
             }
