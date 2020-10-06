@@ -13,6 +13,7 @@ __kernel void default_function(__global coord_t* restrict triangle_3d, __global 
 
   int _top;
   int z_buffer[65536];
+  int frame_buffer[65536];
   for (int x = 0; x < 256; ++x) {
     for (int y = 0; y < 256; ++y) {
       z_buffer[(y + (x * 256))] = 255;
@@ -232,7 +233,6 @@ __kernel void default_function(__global coord_t* restrict triangle_3d, __global 
     }
     size_pixels = scalar7;
     int mutate2;
-    int frame_buffer[65536];
     for (int x3 = 0; x3 < size_pixels; ++x3) {
       pack_t data2 = pixels[x3];
       int scalar12;
@@ -241,19 +241,19 @@ __kernel void default_function(__global coord_t* restrict triangle_3d, __global 
       scalar13 = data2.b;
       frame_buffer[(scalar13 + (scalar12 * 256))] = data2.c;
     }
-
-    for (int i3 = 0; i3 < 4096; ++i3) {
-      frame_t data3 = {frame_buffer[i3 + 0], frame_buffer[i3 + 1], 
-                       frame_buffer[i3 + 2], frame_buffer[i3 + 3], 
-                       frame_buffer[i3 + 4], frame_buffer[i3 + 5],
-                       frame_buffer[i3 + 6], frame_buffer[i3 + 7],
-                       frame_buffer[i3 + 8], frame_buffer[i3 + 9],
-                       frame_buffer[i3 + 10], frame_buffer[i3 + 11],
-                       frame_buffer[i3 + 12], frame_buffer[i3 + 13],
-                       frame_buffer[i3 + 14], frame_buffer[i3 + 15]
-                       };  
-      outp[i3] = data3;
-    }
+  }
+  /* For output packing */
+  for (int i3 = 0; i3 < 4096; ++i3) {
+    frame_t data3 = {frame_buffer[i3 + 0], frame_buffer[i3 + 1], 
+                     frame_buffer[i3 + 2], frame_buffer[i3 + 3], 
+                     frame_buffer[i3 + 4], frame_buffer[i3 + 5],
+                     frame_buffer[i3 + 6], frame_buffer[i3 + 7],
+                     frame_buffer[i3 + 8], frame_buffer[i3 + 9],
+                     frame_buffer[i3 + 10], frame_buffer[i3 + 11],
+                     frame_buffer[i3 + 12], frame_buffer[i3 + 13],
+                     frame_buffer[i3 + 14], frame_buffer[i3 + 15]
+                     };  
+    outp[i3] = data3;
   }
 }
 
