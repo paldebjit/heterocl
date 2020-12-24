@@ -21,6 +21,7 @@
 #include <string>
 
 #include "merlinc/codeanalys_merlinc.h"
+#include "pocc/codeanalys_pocc.h"
 #include "hlsc/codegen_vhls.h"
 #include "opencl/codegen_aocl.h"
 #include "ppac/codegen_rv64_ppac.h"

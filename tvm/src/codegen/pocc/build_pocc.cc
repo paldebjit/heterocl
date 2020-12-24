@@ -1,23 +1,23 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- *  Build merlinc modules from source.
- * \file build_merlinc.cc
+ *  Build PoCC artifacts from source.
+ * \file build_pocc.cc
  */
 #include <tvm/base.h>
 #include <tvm/runtime/config.h>
 #include <unordered_map>
-#include "./codeanalys_merlinc.h"
-#include "./codegen_merlinc.h"
+#include "./codeanalys_pocc.h"
+#include "./codegen_pocc.h"
 #include "../build_common.h"
 
 namespace TVM {
 namespace codegen {
 
-std::string BuildMerlinC(Array<LoweredFunc> funcs) {
+std::string BuildPoCC(Array<LoweredFunc> funcs) {
   using TVM::runtime::Registry;
 
-  CodeAnalysMerlinC ca;
-  CodeGenMerlinC cg;
+  CodeAnalysPoCC ca;
+  CodeGenPoCC cg;
   for (LoweredFunc f : funcs) {
     // 1st pass: Analyze AST and collect necessary information
     ca.AddFunction(f);
@@ -29,16 +29,16 @@ std::string BuildMerlinC(Array<LoweredFunc> funcs) {
   }
   std::string code = cg.Finish();
 
-  if (const auto* f = Registry::Get("tvm_callback_merlinc_postproc")) {
+  if (const auto* f = Registry::Get("tvm_callback_pocc_postproc")) {
     code = (*f)(code).operator std::string();
   }
-  LOG(WARNING) << "MerlinC doesn't have runtime, return kernel code";
+  LOG(WARNING) << "PoCC doesn't have runtime, return kernel code";
   return code;
 }
 
-TVM_REGISTER_API("codegen.build_merlinc")
+TVM_REGISTER_API("codegen.build_pocc")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = BuildMerlinC(args[0]);
+    *rv = BuildPoCC(args[0]);
   });
 }  // namespace codegen
 }  // namespace TVM

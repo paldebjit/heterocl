@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file codegen_merlinc.cc
+ * \file codegen_pocc.cc
  */
 #include <tvm/runtime/config.h>
 #include <tvm/packed_func_ext.h>
@@ -8,18 +8,18 @@
 #include <string>
 #include <tuple>
 #include <regex>
-#include "./codegen_merlinc.h"
+#include "./codegen_pocc.h"
 #include "../../runtime/thread_storage_scope.h"
 
 namespace TVM {
 namespace codegen {
 
-CodeGenMerlinC::CodeGenMerlinC() {
+CodeGenPoCC::CodeGenPoCC() {
   restrict_keyword_ = "restrict"; // FIXME: Check if this is useful
   return ;
 }
 
-void CodeGenMerlinC::InitFuncState(LoweredFunc f) {
+void CodeGenPoCC::InitFuncState(LoweredFunc f) {
   CodeGenC::InitFuncState(f);
   for (Var arg : f->args) {
     if (arg.type().is_handle()) {
@@ -29,7 +29,7 @@ void CodeGenMerlinC::InitFuncState(LoweredFunc f) {
   return ;
 }
 
-void CodeGenMerlinC::AddFunction(LoweredFunc f,
+void CodeGenPoCC::AddFunction(LoweredFunc f,
         str2tupleMap<std::string, Type> map_arg_type) {
   // Clear previous generated state
   this->InitFuncState(f);
@@ -77,16 +77,16 @@ void CodeGenMerlinC::AddFunction(LoweredFunc f,
   this->stream << "}\n\n";
 }
 
-std::string CodeGenMerlinC::Finish() {
+std::string CodeGenPoCC::Finish() {
   return CodeGenC::Finish();
 }
 
-void CodeGenMerlinC::BindThreadIndex(const IterVar& iv) {
+void CodeGenPoCC::BindThreadIndex(const IterVar& iv) {
   LOG(FATAL) << "Merlin doesn't support thread binding";
   return ;
 }
 
-void CodeGenMerlinC::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
+void CodeGenPoCC::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
   int lanes = t.lanes();
   if (t.is_handle()) {
     //LOG(FATAL) << "The buffer shouldn't call PrintType for printing type";
@@ -141,7 +141,7 @@ void CodeGenMerlinC::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
   return ;
 }
 
-void CodeGenMerlinC::PrintVecAddr(const Variable* buffer, Type t,
+void CodeGenPoCC::PrintVecAddr(const Variable* buffer, Type t,
                                  Expr base, std::ostream& os) {  // NOLINT(*)
   // FIXME: What's this node for?
   if (!HandleTypeMatch(buffer, t.element_of())) {
@@ -159,7 +159,7 @@ void CodeGenMerlinC::PrintVecAddr(const Variable* buffer, Type t,
   return ;
 }
 
-void CodeGenMerlinC::PrintVecStore(const Variable* buffer,
+void CodeGenPoCC::PrintVecStore(const Variable* buffer,
                                   Type t, Expr base,
                                   const std::string& value) {
   // FIXME: What's this node for?
@@ -170,7 +170,7 @@ void CodeGenMerlinC::PrintVecStore(const Variable* buffer,
   return ;
 }
 
-void CodeGenMerlinC::PrintStorageSync(const Call* op) {
+void CodeGenPoCC::PrintStorageSync(const Call* op) {
   const std::string& sync = op->args[0].as<StringImm>()->value;
   if (sync == "warp") {
     LOG(FATAL) << "warp sync not supported in Merlin";
@@ -182,12 +182,12 @@ void CodeGenMerlinC::PrintStorageSync(const Call* op) {
   return ;
 }
 
-void CodeGenMerlinC::PrintStorageScope(
+void CodeGenPoCC::PrintStorageScope(
     const std::string& scope, std::ostream& os) { // NOLINT(*)
     return ;
 }
 
-void CodeGenMerlinC::VisitExpr_(const Broadcast* op, std::ostream& os) { // NOLINT(*)
+void CodeGenPoCC::VisitExpr_(const Broadcast* op, std::ostream& os) { // NOLINT(*)
   std::string v = PrintExpr(op->value);
   os << "((";
   PrintType(op->type, os);
@@ -200,7 +200,7 @@ void CodeGenMerlinC::VisitExpr_(const Broadcast* op, std::ostream& os) { // NOLI
   return ;
 }
 
-void CodeGenMerlinC::VisitStmt_(const LetStmt* op) {
+void CodeGenPoCC::VisitStmt_(const LetStmt* op) {
   std::string value = PrintExpr(op->value);
   // Skip the argument retrieving assign statement
   std::string vid = AllocVarID(op->var.get());
@@ -216,7 +216,7 @@ void CodeGenMerlinC::VisitStmt_(const LetStmt* op) {
   PrintStmt(op->body);
 }
 
-void CodeGenMerlinC::VisitStmt_(const For* op) {
+void CodeGenPoCC::VisitStmt_(const For* op) {
   if (op->for_type == ForType::Parallel)
     stream << "#pragma ACCEL parallel\n";
   else if (op->for_type == ForType::Unrolled) {
@@ -242,7 +242,7 @@ void CodeGenMerlinC::VisitStmt_(const For* op) {
   CodeGenC::VisitStmt_(op);
 }
 
-void CodeGenMerlinC::VisitStmt_(const IfThenElse* op) {
+void CodeGenPoCC::VisitStmt_(const IfThenElse* op) {
   std::string cond = PrintExpr(op->condition);
 
   // Skip the buffer data checking

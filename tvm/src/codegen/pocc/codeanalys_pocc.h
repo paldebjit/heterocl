@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file codeanalys_merlinc.h
+ * \file codeanalys_pocc.h
  * \brief AST analyzer for generating Melrin C code.
  */
 #ifndef TVM_CODEGEN_CODEANALYS_MERLINC_H_
@@ -26,10 +26,10 @@ template<class T, class V>
 using str2tupleMap = std::unordered_map<std::string, std::tuple<T, V>>;
 
 /*!
- * \brief A class to analyze the IR AST for MerlinC generation.
+ * \brief A class to analyze the IR AST for PoCC generation.
  *
  */
-class CodeAnalysMerlinC :
+class CodeAnalysPoCC :
       public ExprFunctor<void(const Expr&, std::ostream&)>,
       public StmtFunctor<void(const Stmt&)>,
       public CodeGenSourceBase {
@@ -50,7 +50,7 @@ class CodeAnalysMerlinC :
    */
   str2tupleMap<std::string, Type> Finish();
   /*!
-   * \brief Print the Stmt n to CodeAnalysMerlinC->stream
+   * \brief Print the Stmt n to CodeAnalysPoCC->stream
    * \param n The statement to be printed.
    */
   void PrintStmt(const Stmt& n) {

@@ -173,7 +173,7 @@ class Device(object):
 
     def set_lang(self, lang):
         assert lang in \
-            ["xocl", "aocl", "vhls", "ihls", "merlinc", "cuda"], \
+            ["xocl", "aocl", "vhls", "ihls", "merlinc", "pocc", "cuda"], \
             "unsupported lang sepc " + lang
         self.lang = lang
         return self

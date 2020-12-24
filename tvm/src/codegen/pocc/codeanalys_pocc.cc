@@ -5,7 +5,7 @@
 #include <iomanip>
 #include <cctype>
 #include <regex>
-#include "./codeanalys_merlinc.h"
+#include "./codeanalys_pocc.h"
 #include "../codegen_common.h"
 #include "../../arithmetic/compute_expr.h"
 
@@ -14,17 +14,17 @@ namespace codegen {
 
 using namespace ir;
 
-void CodeAnalysMerlinC::Init() {
+void CodeAnalysPoCC::Init() {
     ;
 }
 
-void CodeAnalysMerlinC::InitFuncState(LoweredFunc f) {
+void CodeAnalysPoCC::InitFuncState(LoweredFunc f) {
   alloc_storage_scope_.clear();
   handle_data_type_.clear();
   map_arg_type_.clear();
   CodeGenSourceBase::ClearFuncState();
 }
-void CodeAnalysMerlinC::AddFunction(LoweredFunc f) {
+void CodeAnalysPoCC::AddFunction(LoweredFunc f) {
   // Clear previous generated state.
   this->InitFuncState(f);
 
@@ -40,19 +40,20 @@ void CodeAnalysMerlinC::AddFunction(LoweredFunc f) {
     this->map_arg_type_[vid];
   }
   int func_scope = this->BeginScope();
+  std::cout << "DP: Inside CodeAnalysPoCC::AddFunction()\n";
   VisitStmt(f->body);
   this->EndScope(func_scope);
 }
 
-str2tupleMap<std::string, Type> CodeAnalysMerlinC::Finish() {
+str2tupleMap<std::string, Type> CodeAnalysPoCC::Finish() {
   return this->map_arg_type_;
 }
 
-void CodeAnalysMerlinC::PrintExpr(const Expr& n, std::ostream& os) {  // NOLINT(*)
+void CodeAnalysPoCC::PrintExpr(const Expr& n, std::ostream& os) {  // NOLINT(*)
   VisitExpr(n, os);
 }
 
-void CodeAnalysMerlinC::PrintSSAAssign(
+void CodeAnalysPoCC::PrintSSAAssign(
     const std::string& target, const std::string& src, Type t) {
   PrintType(t, stream);
   stream << ' ' << target << " = ";
@@ -66,7 +67,7 @@ void CodeAnalysMerlinC::PrintSSAAssign(
 }
 
 // Print a reference expression to a buffer.
-std::string CodeAnalysMerlinC::GetBufferRef(
+std::string CodeAnalysPoCC::GetBufferRef(
     Type t, const Variable* buffer, Expr index) {
   std::ostringstream os;
   std::string vid = GetVarID(buffer);
@@ -133,7 +134,7 @@ std::string CodeAnalysMerlinC::GetBufferRef(
 }
 
 // Print a reference expression to a buffer.
-std::string CodeAnalysMerlinC::GetStructRef(
+std::string CodeAnalysPoCC::GetStructRef(
     Type t, const Expr& buffer, const Expr& index, int kind) {
   if (kind < intrinsic::kArrKindBound_) {
     std::ostringstream os;
@@ -186,13 +187,13 @@ std::string CodeAnalysMerlinC::GetStructRef(
 }
 
 
-bool CodeAnalysMerlinC::HandleTypeMatch(const Variable* buf_var, Type t) const {
+bool CodeAnalysPoCC::HandleTypeMatch(const Variable* buf_var, Type t) const {
   auto it = handle_data_type_.find(buf_var);
   if (it == handle_data_type_.end()) return false;
   return it->second == t;
 }
 
-void CodeAnalysMerlinC::RegisterHandleType(const Variable* buf_var, Type t) {
+void CodeAnalysPoCC::RegisterHandleType(const Variable* buf_var, Type t) {
   auto it = handle_data_type_.find(buf_var);
   if (it == handle_data_type_.end()) {
     handle_data_type_[buf_var] = t;
@@ -202,13 +203,13 @@ void CodeAnalysMerlinC::RegisterHandleType(const Variable* buf_var, Type t) {
   }
 }
 
-void CodeAnalysMerlinC::PrintVecElemLoad(const std::string& vec,
+void CodeAnalysPoCC::PrintVecElemLoad(const std::string& vec,
                                 Type t, int i,
                                 std::ostream& os) {  // NOLINT(*)
   os << vec << ".s" << std::hex << i << std::dec;
 }
 
-void CodeAnalysMerlinC::PrintVecElemStore(const std::string& vec,
+void CodeAnalysPoCC::PrintVecElemStore(const std::string& vec,
                                  Type t, int i,
                                  const std::string& value) {
   this->PrintIndent();
@@ -216,12 +217,12 @@ void CodeAnalysMerlinC::PrintVecElemStore(const std::string& vec,
          << " = " << value << ";\n" << std::dec;
 }
 
-std::string CodeAnalysMerlinC::GetVecLoad(
+std::string CodeAnalysPoCC::GetVecLoad(
     Type t, const Variable* buffer, Expr base) {
   return GetBufferRef(t, buffer, base);
 }
 
-void CodeAnalysMerlinC::PrintVecStore(const Variable* buffer,
+void CodeAnalysPoCC::PrintVecStore(const Variable* buffer,
                              Type t, Expr base,
                              const std::string& value) {
   std::string ref = GetBufferRef(t, buffer, base);
@@ -229,7 +230,7 @@ void CodeAnalysMerlinC::PrintVecStore(const Variable* buffer,
   stream << ref << " = " << value << ";\n";
 }
 
-std::string CodeAnalysMerlinC::CastFromTo(std::string value, Type from, Type target) {
+std::string CodeAnalysPoCC::CastFromTo(std::string value, Type from, Type target) {
   if (from == target) return value;
   std::ostringstream os;
   os << "((";
@@ -238,23 +239,23 @@ std::string CodeAnalysMerlinC::CastFromTo(std::string value, Type from, Type tar
   return os.str();
 }
 
-void CodeAnalysMerlinC::BindThreadIndex(const IterVar& iv) {
+void CodeAnalysPoCC::BindThreadIndex(const IterVar& iv) {
   LOG(FATAL) << "not implemented";
 }
 
-void CodeAnalysMerlinC::PrintStorageSync(const Call* op) { // NOLINT(*)
+void CodeAnalysPoCC::PrintStorageSync(const Call* op) { // NOLINT(*)
 }
 
-void CodeAnalysMerlinC::PrintStorageScope(const std::string& scope, std::ostream& os) { // NOLINT(*)
+void CodeAnalysPoCC::PrintStorageScope(const std::string& scope, std::ostream& os) { // NOLINT(*)
 }
 
-std::string CodeAnalysMerlinC::GetType(Type t) { // NOLINT(*)
+std::string CodeAnalysPoCC::GetType(Type t) { // NOLINT(*)
   std::ostringstream os;
   PrintType(t, os);
   return os.str();
 }
 
-void CodeAnalysMerlinC::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
+void CodeAnalysPoCC::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
   CHECK_EQ(t.lanes(), 1)
       << "do not yet support vector types";
   if (t.is_handle()) {
@@ -285,7 +286,7 @@ void CodeAnalysMerlinC::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
 }
 
 
-inline void PrintConst(const IntImm* op, std::ostream& os, CodeAnalysMerlinC* p) { // NOLINT(*)
+inline void PrintConst(const IntImm* op, std::ostream& os, CodeAnalysPoCC* p) { // NOLINT(*)
   if (op->type == Int(32)) {
     std::ostringstream temp;
     temp << op->value;
@@ -298,7 +299,7 @@ inline void PrintConst(const IntImm* op, std::ostream& os, CodeAnalysMerlinC* p)
   }
 }
 
-inline void PrintConst(const UIntImm* op, std::ostream& os, CodeAnalysMerlinC* p) { // NOLINT(*)
+inline void PrintConst(const UIntImm* op, std::ostream& os, CodeAnalysPoCC* p) { // NOLINT(*)
   if (op->type == UInt(32)) {
     std::ostringstream temp;
     temp << op->value << "U";
@@ -311,7 +312,7 @@ inline void PrintConst(const UIntImm* op, std::ostream& os, CodeAnalysMerlinC* p
   }
 }
 
-inline void PrintConst(const FloatImm* op, std::ostream& os, CodeAnalysMerlinC* p) { // NOLINT(*)
+inline void PrintConst(const FloatImm* op, std::ostream& os, CodeAnalysPoCC* p) { // NOLINT(*)
   switch (op->type.bits()) {
     case 64: case 32: {
       std::ostringstream temp;
@@ -331,16 +332,16 @@ inline void PrintConst(const FloatImm* op, std::ostream& os, CodeAnalysMerlinC* 
   }
 }
 
-void CodeAnalysMerlinC::VisitExpr_(const IntImm *op, std::ostream& os) {  // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const IntImm *op, std::ostream& os) {  // NOLINT(*)
   PrintConst(op, os, this);
 }
-void CodeAnalysMerlinC::VisitExpr_(const UIntImm *op, std::ostream& os) {  // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const UIntImm *op, std::ostream& os) {  // NOLINT(*)
   PrintConst(op, os, this);
 }
-void CodeAnalysMerlinC::VisitExpr_(const FloatImm *op, std::ostream& os) { // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const FloatImm *op, std::ostream& os) { // NOLINT(*)
   PrintConst(op, os, this);
 }
-void CodeAnalysMerlinC::VisitExpr_(const StringImm *op, std::ostream& os) { // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const StringImm *op, std::ostream& os) { // NOLINT(*)
   os << "\"" << op->value << "\"";
 }
 
@@ -348,7 +349,7 @@ template<typename T>
 inline void PrintBinaryExpr(const T* op,
                             const char *opstr,
                             std::ostream& os,  // NOLINT(*)
-                            CodeAnalysMerlinC* p) {
+                            CodeAnalysPoCC* p) {
   if (op->type.lanes() == 1) {
     if (isalpha(opstr[0])) {
       os << opstr << '(';
@@ -371,7 +372,7 @@ inline void PrintBinaryExpr(const T* op,
 inline void PrintBinaryIntrinsitc(const Call* op,
                                   const char *opstr,
                                   std::ostream& os,  // NOLINT(*)
-                                  CodeAnalysMerlinC* p) {
+                                  CodeAnalysPoCC* p) {
   if (op->type.lanes() == 1) {
     CHECK_EQ(op->args.size(), 2U);
     os << '(';
@@ -383,65 +384,65 @@ inline void PrintBinaryIntrinsitc(const Call* op,
     p->PrintVecBinaryOp(opstr, op->type, op->args[0], op->args[1], os);
   }
 }
-void CodeAnalysMerlinC::VisitExpr_(const Cast *op, std::ostream& os) {  // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const Cast *op, std::ostream& os) {  // NOLINT(*)
   std::stringstream value;
   this->PrintExpr(op->value, value);
   os << CastFromTo(value.str(), op->value.type(), op->type);
 }
-void CodeAnalysMerlinC::VisitExpr_(const Variable *op, std::ostream& os) {  // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const Variable *op, std::ostream& os) {  // NOLINT(*)
   os << GetVarID(op);
 }
-void CodeAnalysMerlinC::VisitExpr_(const Add *op, std::ostream& os) {  // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const Add *op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "+", os, this);
 }
-void CodeAnalysMerlinC::VisitExpr_(const Sub *op, std::ostream& os) {  // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const Sub *op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "-", os, this);
 }
-void CodeAnalysMerlinC::VisitExpr_(const Mul *op, std::ostream& os) {  // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const Mul *op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "*", os, this);
 }
-void CodeAnalysMerlinC::VisitExpr_(const Div *op, std::ostream& os) {  // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const Div *op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "/", os, this);
 }
-void CodeAnalysMerlinC::VisitExpr_(const Mod *op, std::ostream& os) {  // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const Mod *op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "%", os, this);
 }
-void CodeAnalysMerlinC::VisitExpr_(const Min *op, std::ostream& os) {  // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const Min *op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "min", os, this);
 }
-void CodeAnalysMerlinC::VisitExpr_(const Max *op, std::ostream& os) {  // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const Max *op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "max", os, this);
 }
-void CodeAnalysMerlinC::VisitExpr_(const EQ *op, std::ostream& os) {  // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const EQ *op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "==", os, this);
 }
-void CodeAnalysMerlinC::VisitExpr_(const NE *op, std::ostream& os) {  // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const NE *op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "!=", os, this);
 }
-void CodeAnalysMerlinC::VisitExpr_(const LT *op, std::ostream& os) {  // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const LT *op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "<", os, this);
 }
-void CodeAnalysMerlinC::VisitExpr_(const LE *op, std::ostream& os) {  // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const LE *op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "<=", os, this);
 }
-void CodeAnalysMerlinC::VisitExpr_(const GT *op, std::ostream& os) {  // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const GT *op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, ">", os, this);
 }
-void CodeAnalysMerlinC::VisitExpr_(const GE *op, std::ostream& os) {  // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const GE *op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, ">=", os, this);
 }
-void CodeAnalysMerlinC::VisitExpr_(const And *op, std::ostream& os) {  // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const And *op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "&&", os, this);
 }
-void CodeAnalysMerlinC::VisitExpr_(const Or *op, std::ostream& os) {  // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const Or *op, std::ostream& os) {  // NOLINT(*)
   PrintBinaryExpr(op, "||", os, this);
 }
-void CodeAnalysMerlinC::VisitExpr_(const Not *op, std::ostream& os) {  // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const Not *op, std::ostream& os) {  // NOLINT(*)
   os << '!';
   PrintExpr(op->a, os);
 }
 
-void CodeAnalysMerlinC::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const Call *op, std::ostream& os) {  // NOLINT(*)
   if (op->call_type == Call::Extern ||
       op->call_type == Call::PureExtern) {
     os << op->name << "(";
@@ -498,7 +499,7 @@ void CodeAnalysMerlinC::VisitExpr_(const Call *op, std::ostream& os) {  // NOLIN
     os << op->name << "()";
 }
 
-void CodeAnalysMerlinC::PrintVecBinaryOp(
+void CodeAnalysPoCC::PrintVecBinaryOp(
     const std::string& op, Type t,
     Expr lhs, Expr rhs, std::ostream& os) {  // NOLINT(*)
   if (isalpha(op[0])) {
@@ -525,7 +526,7 @@ inline bool TryGetRamp1Base(Expr index, int lanes, Expr *base) {
   return true;
 }
 
-void CodeAnalysMerlinC::VisitExpr_(const Load* op, std::ostream& os) {  // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const Load* op, std::ostream& os) {  // NOLINT(*)
   int lanes = op->type.lanes();
   // delcare type.
   if (op->type.lanes() == 1) {
@@ -578,7 +579,7 @@ void CodeAnalysMerlinC::VisitExpr_(const Load* op, std::ostream& os) {  // NOLIN
   }
 }
 
-void CodeAnalysMerlinC::VisitStmt_(const Store* op) {
+void CodeAnalysPoCC::VisitStmt_(const Store* op) {
   Type t = op->value.type();
   if (t.lanes() == 1) {
     std::string value = this->PrintExpr(op->value);
@@ -629,13 +630,13 @@ void CodeAnalysMerlinC::VisitStmt_(const Store* op) {
   }
 }
 
-void CodeAnalysMerlinC::VisitExpr_(const Let* op, std::ostream& os) {  // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const Let* op, std::ostream& os) {  // NOLINT(*)
   std::string value = PrintExpr(op->value);
   CHECK(!var_idmap_.count(op->var.get()));
   var_idmap_[op->var.get()] = value;
 }
 
-void CodeAnalysMerlinC::VisitExpr_(const Ramp* op, std::ostream& os) {  // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const Ramp* op, std::ostream& os) {  // NOLINT(*)
   // constraint of current logic
   CHECK_EQ(op->base.type(), Int(32));
   os << "((int" << op->lanes << ")(";
@@ -647,14 +648,14 @@ void CodeAnalysMerlinC::VisitExpr_(const Ramp* op, std::ostream& os) {  // NOLIN
   os << "))";
 }
 
-void CodeAnalysMerlinC::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*)
   LOG(FATAL) << "Broadcast: not supported ";
 }
 
-void CodeAnalysMerlinC::VisitExpr_(const StreamExpr* op, std::ostream& os) {   // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const StreamExpr* op, std::ostream& os) {   // NOLINT(*)
 }
 
-void CodeAnalysMerlinC::VisitExpr_(const Select* op, std::ostream& os) {  // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const Select* op, std::ostream& os) {  // NOLINT(*)
   os << "(";
   PrintExpr(op->condition, os);
   os << " ? ";
@@ -664,7 +665,7 @@ void CodeAnalysMerlinC::VisitExpr_(const Select* op, std::ostream& os) {  // NOL
   os << ")";
 }
 
-void CodeAnalysMerlinC::VisitExpr_(const GetBit *op, std::ostream& os) { // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const GetBit *op, std::ostream& os) { // NOLINT(*)
   os << "(";
   PrintExpr(op->a, os);
   os << " & (1 << (";
@@ -672,7 +673,7 @@ void CodeAnalysMerlinC::VisitExpr_(const GetBit *op, std::ostream& os) { // NOLI
   os << " - 1)))";
 }
 
-void CodeAnalysMerlinC::VisitExpr_(const GetSlice *op, std::ostream& os) { // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const GetSlice *op, std::ostream& os) { // NOLINT(*)
   // 1. a' = SHR a for Idx_R bits
   // 2. mask: 1.(length).1
   //          (1 << (L - R + 1)) - 1
@@ -689,7 +690,7 @@ void CodeAnalysMerlinC::VisitExpr_(const GetSlice *op, std::ostream& os) { // NO
   os << " + 1)) - 1))";
 }
 
-void CodeAnalysMerlinC::VisitExpr_(const SetBit *op, std::ostream& os) { // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const SetBit *op, std::ostream& os) { // NOLINT(*)
   os << "(";
   PrintExpr(op->a, os);
   os << " | (1 << (";
@@ -697,7 +698,7 @@ void CodeAnalysMerlinC::VisitExpr_(const SetBit *op, std::ostream& os) { // NOLI
   os << " - 1)))";
 }
 
-void CodeAnalysMerlinC::VisitExpr_(const SetSlice *op, std::ostream& os) { // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const SetSlice *op, std::ostream& os) { // NOLINT(*)
   // 1. mask: 0.(Idx L).01..10.(Idx R).0
   //          ((1 << (L - R + 1)) - 1) << R
   // 2. a & mask
@@ -713,14 +714,14 @@ void CodeAnalysMerlinC::VisitExpr_(const SetSlice *op, std::ostream& os) { // NO
   os << "))";
 }
 
-void CodeAnalysMerlinC::VisitExpr_(const Quantize *op, std::ostream& os) { // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const Quantize *op, std::ostream& os) { // NOLINT(*)
  LOG(FATAL) << "Quantize is not yet support";
 }
 
-void CodeAnalysMerlinC::VisitExpr_(const KernelExpr *op, std::ostream& os) { // NOLINT(*)
+void CodeAnalysPoCC::VisitExpr_(const KernelExpr *op, std::ostream& os) { // NOLINT(*)
 }
 
-void CodeAnalysMerlinC::VisitStmt_(const LetStmt* op) {
+void CodeAnalysPoCC::VisitStmt_(const LetStmt* op) {
   // TODO comaniac
   //std::vector<Var> vec_var = GetNodesByType<Var>(op->value);
 
@@ -748,7 +749,7 @@ void CodeAnalysMerlinC::VisitStmt_(const LetStmt* op) {
   VisitStmt(op->body);
 }
 
-void CodeAnalysMerlinC::VisitStmt_(const Allocate* op) {
+void CodeAnalysPoCC::VisitStmt_(const Allocate* op) {
   CHECK(!is_zero(op->condition));
   std::string vid = AllocVarID(op->buffer_var.get());
   if (op->new_expr.defined()) {
@@ -775,7 +776,7 @@ void CodeAnalysMerlinC::VisitStmt_(const Allocate* op) {
   this->PrintStmt(op->body);
 }
 
-void CodeAnalysMerlinC::VisitStmt_(const AttrStmt* op) {
+void CodeAnalysPoCC::VisitStmt_(const AttrStmt* op) {
   if (op->attr_key == ir::attr::thread_extent) {
     IterVar iv(op->node.node_);
     if (iv->thread_tag.length() != 0) {
@@ -795,11 +796,11 @@ void CodeAnalysMerlinC::VisitStmt_(const AttrStmt* op) {
   this->PrintStmt(op->body);
 }
 
-void CodeAnalysMerlinC::VisitStmt_(const ExternModule* op) {
+void CodeAnalysPoCC::VisitStmt_(const ExternModule* op) {
   this->PrintStmt(op->body);
 }
 
-void CodeAnalysMerlinC::VisitStmt_(const AssertStmt* op) {
+void CodeAnalysPoCC::VisitStmt_(const AssertStmt* op) {
   std::string cond = PrintExpr(op->condition);
   PrintIndent();
   if (op->message.as<StringImm>()) {
@@ -812,7 +813,7 @@ void CodeAnalysMerlinC::VisitStmt_(const AssertStmt* op) {
   this->PrintStmt(op->body);
 }
 
-void CodeAnalysMerlinC::VisitStmt_(const For* op) {
+void CodeAnalysPoCC::VisitStmt_(const For* op) {
   std::string extent = PrintExpr(op->extent);
   PrintIndent();
   std::string vid = AllocVarID(op->loop_var.get());
@@ -829,7 +830,7 @@ void CodeAnalysMerlinC::VisitStmt_(const For* op) {
   stream << "}\n";
 }
 
-void CodeAnalysMerlinC::VisitStmt_(const IfThenElse* op) {
+void CodeAnalysPoCC::VisitStmt_(const IfThenElse* op) {
   std::string cond = PrintExpr(op->condition);
   PrintIndent();
   if (cond[0] == '(' && cond[cond.length() - 1] == ')') {
@@ -852,12 +853,12 @@ void CodeAnalysMerlinC::VisitStmt_(const IfThenElse* op) {
   stream << "}\n";
 }
 
-void CodeAnalysMerlinC::VisitStmt_(const Block *op) {
+void CodeAnalysPoCC::VisitStmt_(const Block *op) {
   PrintStmt(op->first);
   if (op->rest.defined()) PrintStmt(op->rest);
 }
 
-void CodeAnalysMerlinC::VisitStmt_(const Evaluate *op) {
+void CodeAnalysPoCC::VisitStmt_(const Evaluate *op) {
   if (is_const(op->value)) return;
   const Call* call = op->value.as<Call>();
   if (call) {
@@ -881,28 +882,28 @@ void CodeAnalysMerlinC::VisitStmt_(const Evaluate *op) {
   this->stream << "(void)" << vid << ";\n";
 }
 
-void CodeAnalysMerlinC::VisitStmt_(const ProducerConsumer *op) {
+void CodeAnalysPoCC::VisitStmt_(const ProducerConsumer *op) {
   PrintStmt(op->body);
 }
 
-void CodeAnalysMerlinC::VisitStmt_(const KernelDef *op) {
+void CodeAnalysPoCC::VisitStmt_(const KernelDef *op) {
 }
 
-void CodeAnalysMerlinC::VisitStmt_(const KernelStmt *op) {
+void CodeAnalysPoCC::VisitStmt_(const KernelStmt *op) {
 }
 
-void CodeAnalysMerlinC::VisitStmt_(const Return *op) {
+void CodeAnalysPoCC::VisitStmt_(const Return *op) {
   this->stream << "return ";
   PrintExpr(op->value);
   this->stream << ";\n";
 }
 
-void CodeAnalysMerlinC::VisitStmt_(const Break *op) {
+void CodeAnalysPoCC::VisitStmt_(const Break *op) {
   // TODO: Check if the break statement is used correctly
   this->stream << "break;\n";
 }
 
-void CodeAnalysMerlinC::VisitStmt_(const While *op) {
+void CodeAnalysPoCC::VisitStmt_(const While *op) {
   std::string condition = PrintExpr(op->condition);
   PrintIndent();
   stream << "while (" << condition << ") {\n";
@@ -913,15 +914,15 @@ void CodeAnalysMerlinC::VisitStmt_(const While *op) {
   stream << "}\n";
 }
 
-void CodeAnalysMerlinC::VisitStmt_(const Reuse *op) {
+void CodeAnalysPoCC::VisitStmt_(const Reuse *op) {
   LOG(FATAL) << "KernelDef is not yet support";
 }
 
-void CodeAnalysMerlinC::VisitStmt_(const Partition *op) {}
+void CodeAnalysPoCC::VisitStmt_(const Partition *op) {}
 
-void CodeAnalysMerlinC::VisitStmt_(const StreamStmt *op) {}
+void CodeAnalysPoCC::VisitStmt_(const StreamStmt *op) {}
 
-void CodeAnalysMerlinC::VisitStmt_(const Stencil *op) {
+void CodeAnalysPoCC::VisitStmt_(const Stencil *op) {
   PrintStmt(op->body);
 }
 

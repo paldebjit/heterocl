@@ -9,15 +9,15 @@
 #include <tvm/codegen.h>
 #include <tvm/packed_func_ext.h>
 #include <string>
-#include "./codeanalys_merlinc.h"
+#include "./codeanalys_pocc.h"
 #include "../codegen_c.h"
 
 namespace TVM {
 namespace codegen {
 
-class CodeGenMerlinC final : public CodeGenC {
+class CodeGenPoCC final : public CodeGenC {
  public:
-  CodeGenMerlinC();
+  CodeGenPoCC();
   void AddFunction(LoweredFunc f, str2tupleMap<std::string, Type> map_arg_type);
   std::string Finish();
 

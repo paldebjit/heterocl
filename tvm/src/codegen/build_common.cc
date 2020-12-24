@@ -19,6 +19,7 @@
 #include <iostream>
 
 #include "merlinc/codeanalys_merlinc.h"
+#include "pocc/codeanalys_pocc.h"
 #include "hlsc/codegen_vhls.h"
 #include "hlsc/codegen_ihls.h"
 #include "opencl/codegen_aocl.h"
