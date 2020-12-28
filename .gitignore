@@ -17,6 +17,7 @@ docs/source/samples
 docs/source/tutorials
 soda_*
 out
+doxygen/docs
 
 # Downloaded files
 *.params
