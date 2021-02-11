@@ -33,11 +33,24 @@ class CodeGenPoCC final : public CodeGenC {
   // the address of load/store
   void PrintVecAddr(const Variable* buffer, Type t,
                     Expr base, std::ostream& os);  // NOLINT(*)
-  // overload visitor
-  void VisitStmt_(const For* op) override;
+  // overload visitor for Expression
   void VisitExpr_(const Broadcast* op, std::ostream& os) final; // NOLINT(*)
+  void VisitExpr_(const Load* op, std::ostream& os) final; // NOLINT(*)
+
+  void VisitExpr_(const Variable* op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const IntImm* op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const UIntImm* op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const FloatImm* op, std::ostream& os) final;  // NOLINT(*)
+  void VisitExpr_(const StringImm* op, std::ostream& os) final;  // NOLINT(*)
+
+  // overload visitor for Statement
+  void VisitStmt_(const For* op) override;
   void VisitStmt_(const LetStmt* op) final; // NOLINT(*)
   void VisitStmt_(const IfThenElse* op) final; // NOLINT(*)
+  void VisitStmt_(const Store* op) final; // NOLINT(*)
+  // overload buffer parsing
+  std::string GetBufferRef(Type t, const Variable* buffer, Expr index) final; // NOLINT(*)
+
  private:
 };
 

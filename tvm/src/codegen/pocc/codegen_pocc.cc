@@ -217,6 +217,7 @@ void CodeGenPoCC::VisitStmt_(const LetStmt* op) {
 }
 
 void CodeGenPoCC::VisitStmt_(const For* op) {
+  /*
   if (op->for_type == ForType::Parallel)
     stream << "#pragma ACCEL parallel\n";
   else if (op->for_type == ForType::Unrolled) {
@@ -240,6 +241,138 @@ void CodeGenPoCC::VisitStmt_(const For* op) {
   else if (op->for_type == ForType::Pipelined)
     stream << "#pragma ACCEL pipeline\n";
   CodeGenC::VisitStmt_(op);
+  */
+  PrintIndent();
+  std::string extent = PrintExpr(op->extent);
+  std::string min = PrintExpr(op->min);
+  std::string vid = AllocVarID(op->loop_var.get());
+
+  PrintIndent();
+  stream << "{\n";
+  stream << "vid = " << vid << " "
+         << "Lbound = " << min << " "
+         << "extent = " << extent << ";\n";
+  int for_scope = BeginScope();
+  PrintStmt(op->body);
+  this->EndScope(for_scope);
+  PrintIndent();
+  stream << "}\n";
+}
+
+void CodeGenPoCC::VisitStmt_(const Store* op) {
+  Type t = op->value.type();
+  if (t.lanes() == 1) {
+    std::string value = this->PrintExpr(op->value);
+    std::string ref = this->GetBufferRef(t, op->buffer_var.get(), op->index);
+    this->PrintIndent();
+    stream << "STORE: " << ref << " = " << value << ";\n";
+  }/* else {
+    CHECK(is_one(op->predicate))
+        << "Predicated store is not supported";
+    Expr base;
+    if (TryGetRamp1Base(op->index, t.lanes(), &base)) {
+      std::string value = this->PrintExpr(op->value);
+      this->PrintVecStore(op->buffer_var.get(), t, base, value);
+    } else {
+      // The assignment below introduces side-effect, and the resulting value cannot
+      // be reused across multiple expression, thus a new scope is needed
+      int vec_scope = BeginScope();
+
+      // store elements seperately
+      std::string index = SSAGetID(PrintExpr(op->index), op->index.type());
+      std::string value = SSAGetID(PrintExpr(op->value), op->value.type());
+      std::string vid = GetVarID(op->buffer_var.get());
+      for (int i = 0; i < t.lanes(); ++i) {
+        this->PrintIndent();
+        stream << vid;
+        stream << '[';
+        PrintVecElemLoad(index, op->index.type(), i, stream);
+        stream << "] = ";
+        PrintVecElemLoad(value, op->value.type(), i, stream);
+        stream << ";\n";
+      }
+      EndScope(vec_scope);
+    }
+  }*/
+}
+
+void CodeGenPoCC::VisitExpr_(const Load* op, std::ostream& os) {
+  //int lanes = op->type.lanes();
+  // delcare type.
+  if (op->type.lanes() == 1) {
+    std::string ref = this->GetBufferRef(op->type, op->buffer_var.get(), op->index);
+    os << "LOAD: " << ref;
+  } /*else {
+    CHECK(is_one(op->predicate))
+        << "predicated load is not supported";
+    Expr base;
+    if (TryGetRamp1Base(op->index, op->type.lanes(), &base)) {
+      std::string ref = GetVecLoad(op->type, op->buffer_var.get(), base);
+      os << ref;
+    } else {
+      // The assignment below introduces side-effect, and the resulting value cannot
+      // be reused across multiple expression, thus a new scope is needed
+      int vec_scope = BeginScope();
+
+      // load seperately.
+      std::string svalue = GetUniqueName("_");
+      this->PrintIndent();
+      this->PrintType(op->type, stream);
+      stream << ' ' << svalue << ";\n";
+      std::string sindex = SSAGetID(PrintExpr(op->index), op->index.type());
+      std::string vid = GetVarID(op->buffer_var.get());
+      Type elem_type = op->type.element_of();
+      for (int i = 0; i < lanes; ++i) {
+        std::ostringstream value_temp;
+        if (!HandleTypeMatch(op->buffer_var.get(), elem_type)) {
+          value_temp << "((";
+          if (op->buffer_var.get()->type.is_handle()) {
+            auto it = alloc_storage_scope_.find(op->buffer_var.get());
+            if (it != alloc_storage_scope_.end()) {
+              PrintStorageScope(it->second, value_temp);
+              value_temp << ' ';
+            }
+          }
+          PrintType(elem_type, value_temp);
+          value_temp << "*)" << vid << ')';
+        } else {
+          value_temp << vid;
+        }
+        value_temp << '[';
+        PrintVecElemLoad(sindex, op->index.type(), i, value_temp);
+        value_temp << ']';
+        PrintVecElemStore(svalue, op->type, i, value_temp.str());
+      }
+      os << svalue;
+      EndScope(vec_scope);
+    }
+  }*/
+}
+
+// Print a reference expression to a buffer.
+std::string CodeGenPoCC::GetBufferRef(Type t, const Variable* buffer, Expr index) {
+    
+  return "GetBufferRef";
+//  std::ostringstream os;
+//  std::string vid = GetVarID(buffer);
+//  std::string scope;
+//  if (alloc_storage_scope_.count(buffer)) {
+//    scope = alloc_storage_scope_.at(buffer);
+//  }
+//  bool is_vol = volatile_buf_.count(buffer) != 0;
+//  if (t.lanes() == 1) {
+//    bool is_scalar = (buf_length_map_.count(buffer) == 1 &&
+//        buf_length_map_[buffer] == 1);
+//    if (is_scalar) {
+//      os << vid;
+//    } else {
+//      os << vid;
+//      os << '[';
+//      PrintExpr(index, os);
+//      os << ']';
+//    }
+//  }
+//  return os.str();
 }
 
 void CodeGenPoCC::VisitStmt_(const IfThenElse* op) {
