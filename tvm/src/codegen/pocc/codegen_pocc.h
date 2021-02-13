@@ -67,11 +67,13 @@ class CodeGenPoCC final : public CodeGenC {
   int GetTotalNumStmts(); // NOLINT(*)
   void PushIterBounds(iter_bounds ib);
   void PopIterBounds();
+  int SizeIterBounds();
+  std::vector<iter_bounds> GetIterBounds();
+
   void InsertParams(std::string); // NOLINT(*)
   int GetParams(); // NOLINT(*)
   bool IsParamEmpty();
   std::string WriteParams(); 
-
   // Add column
   // Add rows
 

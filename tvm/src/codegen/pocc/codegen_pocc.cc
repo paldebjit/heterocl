@@ -96,6 +96,76 @@ std::string CodeGenPoCC::WriteParams() {
     return param_name;
 }
 
+void CodeGenPoCC::PushIterBounds(iter_bounds ib) {
+    iterators.push_back(ib);
+}
+
+void CodeGenPoCC::PopIterBounds() {
+    iterators.pop_back();
+}
+
+int CodeGenPoCC::SizeIterBounds() {
+    return iterators.size();
+}
+
+std::vector<iter_bounds> CodeGenPoCC::GetIterBounds() {
+    return iterators;
+}
+
+std::string CodeGenPoCC::WriteIterDomMatrix() {
+    std::string matrix{""};
+    // e/i | iterators | prameters | constant
+    int no_of_cols = 1 + this->SizeIterBounds() + this->GetParams() + 1;
+    int no_of_rows = 2 * this->SizeIterBounds();
+
+    matrix +=  std::to_string(no_of_rows) + " " + std::to_string(no_of_cols) + "\n";
+    
+    // +1 for columns to pretty print the comment for iterator inequality
+    std::vector<std::vector<std::string>> matrix_(no_of_rows, std::vector<std::string>(no_of_cols + 1, "0"));
+    
+    std::vector<iter_bounds> iterators_ = this->GetIterBounds();
+    
+    int row{0};
+    for (size_t i = 0; i < iterators_.size(); i++) {
+
+        std::string iterator = std::get<0>(iterators_[i].LB);
+        std::string lb = std::get<1>(iterators_[i].LB);
+        
+        std::string ub = std::get<1>(iterators_[i].UB);
+        std::cout << iterator << " " << lb << " " << ub;
+        
+        std::vector<std::string> row1(no_of_cols + 1, "0");
+        row1[0] = "1";
+
+        row1[i + 1] = "1";
+        row1[no_of_cols - 1] = lb;
+        row1[no_of_cols] = "## " + iterator + " >= " + lb;
+        matrix_[row] = row1;
+        row++;
+
+        std::vector<std::string> row2(no_of_cols + 1, "0");
+        row2[0] = "1";
+
+        row2[i + 1] = "-1";
+        row2[no_of_cols - 1] = ub;
+        row2[no_of_cols] = "## -" + iterator + " >= " + ub;
+        matrix_[row] = row2;
+        row++;
+        
+    }
+
+    for (auto vec: matrix_) {
+        matrix = matrix + "   ";
+        for (auto x: vec) {
+            matrix = matrix + x + "\t";
+        }
+        matrix = matrix + "\n";
+    }
+
+    return matrix;
+}
+
+
 void CodeGenPoCC::AddFunction(LoweredFunc f,
         str2tupleMap<std::string, Type> map_arg_type) {
   // Clear previous generated state
@@ -238,13 +308,6 @@ void CodeGenPoCC::VisitStmt_(const LetStmt* op) {
   PrintStmt(op->body);
 }
 
-void CodeGenPoCC::PushIterBounds(iter_bounds ib) {
-    iterators.push_back(ib);
-}
-
-void CodeGenPoCC::PopIterBounds() {
-    iterators.pop_back();
-}
 
 void CodeGenPoCC::VisitStmt_(const For* op) {
   std::string extent = PrintExpr(op->extent);
