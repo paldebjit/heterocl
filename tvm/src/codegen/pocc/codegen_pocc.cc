@@ -120,16 +120,61 @@ int CodeGenPoCC::SizeIterCoeff() {
     return iterator_coeff_dict.size();
 }
 
-std::string CodeGenPoCC::Index(std::string vid) {
+int CodeGenPoCC::Index(std::string vid, std::vector<std::string> vmap) {
     int index{-1};
-    auto it = std::find(vid_map.begin(), vid_map.end(), vid);
-    if (it != vid_map.end()) {
-        index = it - vid_map.begin();
+    auto it = std::find(vmap.begin(), vmap.end(), vid);
+    if (it != vmap.end()) {
+        index = it - vmap.begin();
     }
-    return std::to_string(index);
+    return index;
 }
 
-std::string CodeGenPoCC::WriteWAccessMatrix() {
+std::string CodeGenPoCC::WriteScatteringMatrix() {
+    std::string matrix{""};
+    // root | iterators | paramaters | constant
+    int no_of_cols = 1 + curr_iterators.size() + this->GetParams() + 1;
+    int no_of_rows = 2 * curr_iterators.size() + 1;
+
+    matrix +=  std::to_string(no_of_rows) + " " + std::to_string(no_of_cols) + "\n";
+
+    std::vector<std::vector<std::string>> matrix_(no_of_rows, std::vector<std::string>(no_of_cols + 1, "0"));
+
+    matrix_[0][no_of_cols] = "## 0";
+
+    int row{1};
+    for (size_t i = 0; i < curr_iterators.size(); i++) {
+        int child{-1};
+
+        std::vector<std::string> row1(no_of_cols + 1, "0");
+        auto found = schedule.find(curr_iterators[i]);
+        if (found != schedule.end()) {
+            child = found->second;
+        }
+        
+        row1[i + 1] = "1";
+        row1[no_of_cols] = "## " + curr_iterators[i];
+        matrix_[row] = row1;
+        row++;
+
+        std::vector<std::string> row2(no_of_cols + 1, "0");
+        row2[no_of_cols - 1] = std::to_string(child);
+        row2[no_of_cols] = "## " + std::to_string(child);
+        matrix_[row] = row2;
+        row++;
+    }
+
+    for (auto vec: matrix_) {
+        matrix = matrix + "   ";
+        for (auto x: vec) {
+            matrix = matrix + x + "\t";
+        }
+        matrix = matrix + "\n";
+    }
+
+    return matrix;
+}
+
+std::string CodeGenPoCC::WriteReadWriteAccessMatrix() {
     std::string matrix{""};
     // vid | iterators | parameters | constant
     int no_of_cols = 1 + this->SizeIterCoeff() + this->GetParams() + 1;
@@ -144,7 +189,7 @@ std::string CodeGenPoCC::WriteWAccessMatrix() {
         std::vector<std::string> row1(no_of_cols + 1, "0");
         std::string rw_expr{"## " + rw_var + "["};
 
-        row1[0] = this->Index(rw_var); 
+        row1[0] = std::to_string(this->Index(rw_var, read_write_variable)); 
         std::unordered_map<std::string, std::string> iterator_coeff_dict_;
         auto found = iterator_coeff_dict.find(rw_var);
         if(found != iterator_coeff_dict.end()){
@@ -391,12 +436,32 @@ void CodeGenPoCC::VisitStmt_(const For* op) {
   ib.UB = make_tuple(vid, extent);
 
   int for_scope = BeginScope();
+
+  schedule.insert({vid, 0});
+  curr_iterators.push_back(vid);
+
   this->PushIterBounds(ib);
   //stream << "// For scope start: " << for_scope << "\n";
   PrintStmt(op->body);
   //stream << "// For scope end: " << for_scope << "\n";
   this->PopIterBounds();
   this->EndScope(for_scope);
+  
+  // readjusting the unordered map once the scope changes
+  std::string back = curr_iterators.back();
+  auto found = schedule.find(back);
+  if (found != schedule.end()) {
+      schedule.erase(found);
+  }
+  curr_iterators.pop_back();
+  if (!curr_iterators.empty()) {
+      std::string back = curr_iterators.back();
+      auto found = schedule.find(back);
+      if (found != schedule.end()) {
+          found->second += 1;
+      }
+  }
+
   //stream << "Pop top-most iterator\n";
   //PrintIndent();
   //stream << "}\n";
@@ -432,21 +497,39 @@ void CodeGenPoCC::VisitStmt_(const Store* op) {
     std::string iter_domain_matrix = this->WriteIterDomMatrix();
 
     std::string value = this->PrintExpr(op->value);
-    std::string read_access_matrix =  this->WriteWAccessMatrix();   
+    std::string read_access_matrix =  this->WriteReadWriteAccessMatrix();   
     // The step is needed to ensure that the coefficients from the read
     // access are cleared
     read_write_variable.clear();
     iterator_coeff_dict.clear();
 
     std::string ref = this->GetBufferRef(t, op->buffer_var.get(), op->index);
-    std::string write_access_matrix = this->WriteWAccessMatrix();
+    std::string write_access_matrix = this->WriteReadWriteAccessMatrix();
     // This step is needed to ensure that the coefficient from the write
     // access are cleared
     read_write_variable.clear();
     iterator_coeff_dict.clear();
 
+    std::cout << "curr_iterators size: " << curr_iterators.size() << "\n";
+    std::cout << "Schedule: ";
+    for (auto v: curr_iterators) {
+        auto found = schedule.find(v);
+        if (found != schedule.end()) {
+            std::cout << found->first << " " << found->second << " ";
+        }
+    }
+    std::cout << "\n";
+    std::string scattering_matrix = this->WriteScatteringMatrix();
+
+    std::string back = curr_iterators.back();
+    auto found = schedule.find(back);
+    if (found != schedule.end()) {
+        found->second += 1;
+    }
+
     this->IncrStmtNum();
     this->SetAccessFuncStat();
+    this->SetScatFuncStat();
 
     stream << CreateDelimiter("=") << "Statement " << this->GetStmtNum() << "\n";
     stream << CreateDelimiter("-") << this->GetStmtNum() << ".1 Domain" << "\n";
@@ -459,11 +542,12 @@ void CodeGenPoCC::VisitStmt_(const Store* op) {
         stream << "# Scattering function is provided\n";
         stream << "1\n";
         stream << "# Scattering function\n";
-        //stream << this->WriteScatteringMatrix();
+        stream << scattering_matrix;
     } else {
         stream << "# Scattering function is not provided\n";
         stream << "0\n";
     }
+    stream << "\n";
     stream << CreateDelimiter("-") << this->GetStmtNum() << ".3 Access" << "\n";
     if (this->GetAccessFuncStat()) {
         stream << "# Access informations are provided\n";

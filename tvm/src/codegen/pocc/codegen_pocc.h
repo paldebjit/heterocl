@@ -90,13 +90,13 @@ class CodeGenPoCC final : public CodeGenC {
 
   // functions to readout the matrices
   std::string WriteIterDomMatrix(); // NOLINT(*)
-  std::string WriteWAccessMatrix(); // NOLINT(*)
-  //std::string WriteRAccessMatrix(); // NOLINT(*)
+  std::string WriteReadWriteAccessMatrix(); // NOLINT(*)
+  std::string WriteScatteringMatrix(); // NOLINT(*)
 
   // generic functions
   std::vector<std::string> Split(const std::string &s, char delim); // NOLINT(*)
   std::string Strip(const std::string &s); // NOLINT(*)
-  std::string Index(std::string vid);
+  int Index(std::string vid, std::vector<std::string>);
   void MapVid(std::string vid); // NOLINT(*)
 
  private:
@@ -108,9 +108,8 @@ class CodeGenPoCC final : public CodeGenC {
   std::vector<std::string> parameters;
   std::vector<iter_bounds> iterators;
   std::vector<std::string> iterator_sequence;
-  //std::vector<std::vector<int>> scattering;          // root | iterators | params | const
-  //std::vector<std::vector<int>> read_access;         // array ident | iterators | params | const
-  //std::vector<std::vector<int>> write_access;       // array ident | iterators | params | const
+  std::unordered_map<std::string, int> schedule;
+  std::vector<std::string> curr_iterators; // FIXME: possibly same as iterator_sequence
 
   std::queue<std::string> statements;
   int no_of_stmt{0};
