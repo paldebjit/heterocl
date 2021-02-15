@@ -47,6 +47,10 @@ int CodeGenPoCC::GetStmtNum() {
     return no_of_stmt;
 }
 
+void CodeGenPoCC::ResetAccessFuncStat() {
+    access_func_stmt = false;
+}
+
 void CodeGenPoCC::SetAccessFuncStat() {
     access_func_stmt = true;
 }
@@ -87,7 +91,7 @@ std::string CodeGenPoCC::WriteParams() {
     size_t param_size_ = this->GetParams();
     std::string param_name{""};
     for (size_t i = 0; i < param_size_; i++) {
-        if(i == 0 || i == param_size_ - 1) {
+        if(i == param_size_ - 1) {
             param_name = param_name + parameters[i];
         } else {
             param_name = param_name + parameters[i] + " ";
@@ -112,9 +116,74 @@ std::vector<iter_bounds> CodeGenPoCC::GetIterBounds() {
     return iterators;
 }
 
+int CodeGenPoCC::SizeIterCoeff() {
+    return iterator_coeff_dict.size();
+}
+
+std::string CodeGenPoCC::Index(std::string vid) {
+    int index{-1};
+    auto it = std::find(vid_map.begin(), vid_map.end(), vid);
+    if (it != vid_map.end()) {
+        index = it - vid_map.begin();
+    }
+    return std::to_string(index);
+}
+
+std::string CodeGenPoCC::WriteWAccessMatrix() {
+    std::string matrix{""};
+    // vid | iterators | parameters | constant
+    int no_of_cols = 1 + this->SizeIterCoeff() + this->GetParams() + 1;
+    int no_of_rows = read_write_variable.size();
+
+    matrix +=  std::to_string(no_of_rows) + " " + std::to_string(no_of_cols) + "\n";
+    
+    std::vector<std::vector<std::string>> matrix_(no_of_rows, std::vector<std::string>(no_of_cols + 1, "0"));
+    
+    int row{0};
+    for (auto rw_var: read_write_variable) {
+        std::vector<std::string> row1(no_of_cols + 1, "0");
+        std::string rw_expr{"## " + rw_var + "["};
+
+        row1[0] = this->Index(rw_var); 
+        std::unordered_map<std::string, std::string> iterator_coeff_dict_;
+        auto found = iterator_coeff_dict.find(rw_var);
+        if(found != iterator_coeff_dict.end()){
+            std::cout << "Found RW_var: " << rw_var << "\n";
+            iterator_coeff_dict_ = found->second;
+        }
+        for (size_t i = 0; i < iterator_sequence.size(); i++) {
+            std::cout << "Iterator cofficient: " << iterator_sequence[i] << "\n";
+            auto found = iterator_coeff_dict_.find(iterator_sequence[i]);
+            if (found != iterator_coeff_dict_.end()) {
+                std::cout << "Iterator coefficient found: " << found->second << "\n";
+                row1[i + 1] = found->second;
+                if (i == iterator_sequence.size() - 1) {
+                    rw_expr = rw_expr + found->second + "*" + iterator_sequence[i];
+                } else {
+                    rw_expr = rw_expr + found->second + "*" + iterator_sequence[i] + "+";
+                }
+            }
+        }
+        rw_expr = rw_expr + "]";
+        row1[no_of_cols] = rw_expr;
+        matrix_[row] = row1;
+        row++;
+    }
+
+    for (auto vec: matrix_) {
+        matrix = matrix + "   ";
+        for (auto x: vec) {
+            matrix = matrix + x + "\t";
+        }
+        matrix = matrix + "\n";
+    }
+
+    return matrix;
+}
+
 std::string CodeGenPoCC::WriteIterDomMatrix() {
     std::string matrix{""};
-    // e/i | iterators | prameters | constant
+    // e/i | iterators | parameters | constant
     int no_of_cols = 1 + this->SizeIterBounds() + this->GetParams() + 1;
     int no_of_rows = 2 * this->SizeIterBounds();
 
@@ -132,7 +201,6 @@ std::string CodeGenPoCC::WriteIterDomMatrix() {
         std::string lb = std::get<1>(iterators_[i].LB);
         
         std::string ub = std::get<1>(iterators_[i].UB);
-        std::cout << iterator << " " << lb << " " << ub;
         
         std::vector<std::string> row1(no_of_cols + 1, "0");
         row1[0] = "1";
@@ -148,10 +216,11 @@ std::string CodeGenPoCC::WriteIterDomMatrix() {
 
         row2[i + 1] = "-1";
         row2[no_of_cols - 1] = ub;
-        row2[no_of_cols] = "## -" + iterator + " >= " + ub;
+        row2[no_of_cols] = "## -" + iterator + " + " + ub + " >= 0";
         matrix_[row] = row2;
         row++;
-        
+
+        iterator_sequence.push_back(iterator);
     }
 
     for (auto vec: matrix_) {
@@ -360,19 +429,37 @@ void CodeGenPoCC::VisitStmt_(const Allocate* op) {
 void CodeGenPoCC::VisitStmt_(const Store* op) {
   Type t = op->value.type();
   if (t.lanes() == 1) {
+    std::string iter_domain_matrix = this->WriteIterDomMatrix();
+
     std::string value = this->PrintExpr(op->value);
+    std::string read_access_matrix =  this->WriteWAccessMatrix();   
+    // The step is needed to ensure that the coefficients from the read
+    // access are cleared
+    read_write_variable.clear();
+    iterator_coeff_dict.clear();
+
     std::string ref = this->GetBufferRef(t, op->buffer_var.get(), op->index);
+    std::string write_access_matrix = this->WriteWAccessMatrix();
+    // This step is needed to ensure that the coefficient from the write
+    // access are cleared
+    read_write_variable.clear();
+    iterator_coeff_dict.clear();
+
     this->IncrStmtNum();
+    this->SetAccessFuncStat();
+
     stream << CreateDelimiter("=") << "Statement " << this->GetStmtNum() << "\n";
     stream << CreateDelimiter("-") << this->GetStmtNum() << ".1 Domain" << "\n";
     stream << "# Iteration domain\n";
     stream << "1\n";
-    stream << this->WriteIterDomMatrix() << "\n";
+    stream << iter_domain_matrix;
     stream << "\n";
     stream << CreateDelimiter("-") << this->GetStmtNum() << ".2 Scattering" << "\n";
     if (this->GetScatFuncStat()) {
         stream << "# Scattering function is provided\n";
         stream << "1\n";
+        stream << "# Scattering function\n";
+        //stream << this->WriteScatteringMatrix();
     } else {
         stream << "# Scattering function is not provided\n";
         stream << "0\n";
@@ -381,8 +468,12 @@ void CodeGenPoCC::VisitStmt_(const Store* op) {
     if (this->GetAccessFuncStat()) {
         stream << "# Access informations are provided\n";
         stream << "1\n";
-        stream << "Read access informations\n";
-        stream << "Write access informations\n";
+        stream << "# Read access informations\n";
+        stream << read_access_matrix;
+        stream << "\n";
+        stream << "# Write access informations\n";
+        stream << write_access_matrix;
+        stream << "\n";
     } else {
         stream << "# Access informations are not provided\n";
         stream << "0\n";
@@ -391,10 +482,22 @@ void CodeGenPoCC::VisitStmt_(const Store* op) {
     stream << "# Statement body is provided\n";
     stream << "1\n";
     stream << "# Original iterator names\n";
+    
+    std::string iterator_names{""};
+    size_t iterator_num = iterator_sequence.size();
+    for (size_t i = 0; i < iterator_num; i++) {
+        if (i == iterator_num - 1){
+            iterator_names = iterator_names + iterator_sequence[i];
+        } else {
+            iterator_names = iterator_names + iterator_sequence[i] + " ";
+        }
+    }
+    stream << iterator_names <<"\n";
     stream << "# Statement body\n";
     stream << ref << " = " << value << ";\n";
     statements.push(ref + " = " + value);
     stream << "\n\n";
+    iterator_sequence.clear();
   }
 }
 
@@ -405,10 +508,29 @@ void CodeGenPoCC::VisitExpr_(const Load* op, std::ostream& os) {
   }
 }
 
+void CodeGenPoCC::MapVid(std::string vid) {
+    read_write_variable.push_back(vid);
+    if (std::find(vid_map.begin(), vid_map.end(), vid) == vid_map.end()) {
+        vid_map.push_back(vid);
+    }
+}
+
 // Print a reference expression to a buffer.
 std::string CodeGenPoCC::GetBufferRef(Type t, const Variable* buffer, Expr index) {
   std::ostringstream os;
+  std::ostringstream expr;
+  char to_remove[] = "()";
+
   std::string vid = GetVarID(buffer);
+
+  this->MapVid(vid);
+
+  std::cout << "#$#$\n";
+  for (auto v: vid_map) {
+      std::cout << v << "\n";
+  }
+  std::cout << "#$#$\n";
+
   std::string scope;
   if (alloc_storage_scope_.count(buffer)) {
     scope = alloc_storage_scope_.at(buffer);
@@ -420,13 +542,79 @@ std::string CodeGenPoCC::GetBufferRef(Type t, const Variable* buffer, Expr index
     if (is_scalar) {
       os << vid;
     } else {
+
+      PrintExpr(index, expr);
+      std::string expr_ = expr.str();
+
       os << vid;
       os << '[';
-      PrintExpr(index, os);
+      os << expr_;
       os << ']';
+
+      for (auto to_remove_ : to_remove) {
+          expr_.erase(std::remove(expr_.begin(), expr_.end(), to_remove_), expr_.end());
+      }
+
+      std::cout << expr_ << "\n";
+
+      std::vector<std::string> tokens;
+      tokens = this->Split(expr_, '+');
+      for (auto token: tokens) {
+          std::cout << "#" << token << "#" << "\n";
+          bool found = token.find("*") != std::string::npos;
+          if (!found) {
+              this->UpdateIterCoeff(vid, token, "1");
+          } else {
+              std::vector<std::string> token_ = this->Split(token, '*');
+              this->UpdateIterCoeff(vid, token_[0], token_[1]);
+          }
+          std::cout << found << "\n";
+      }
     }
   }
   return os.str();
+}
+
+void CodeGenPoCC::UpdateIterCoeff(std::string vid, std::string iterator, std::string coeff) {
+    auto found = iterator_coeff_dict.find(vid);
+    if (found != iterator_coeff_dict.end()) {
+        iterator_coeff_dict[vid].insert({iterator, coeff});
+    } else {
+        std::unordered_map<std::string, std::string> iter_coeff = {{iterator, coeff}};
+        iterator_coeff_dict.insert({vid, iter_coeff});
+    }
+    
+    for (auto v1: iterator_coeff_dict) {
+        for (auto v2: v1.second) {
+            std::cout << "#-> " << v1.first << " #--> " << " #--> " << v2.first << " #--> " << v2.second << "\n";
+        }
+    }
+}
+
+std::vector<std::string> CodeGenPoCC::Split(const std::string &s, char delim) {
+    std::vector<std::string> result;
+    std::stringstream ss (s);
+    std::string item;
+
+    while (getline(ss, item, delim)) {
+        result.push_back(this->Strip(item));
+    }
+
+    return result;
+}
+
+std::string CodeGenPoCC::Strip(const std::string &s) {
+    auto start = s.begin();
+    auto end = s.rbegin();
+
+    while (std::isspace(*start)) {
+        ++start;
+    }
+    while (std::isspace(*end)) {
+        ++end;
+    }
+
+    return std::string(start, end.base());
 }
 
 void CodeGenPoCC::VisitStmt_(const IfThenElse* op) {

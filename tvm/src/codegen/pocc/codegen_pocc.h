@@ -11,6 +11,7 @@
 #include <string>
 #include <queue>
 #include <tuple>
+#include <sstream>
 #include "./codeanalys_pocc.h"
 #include "../codegen_c.h"
 
@@ -54,42 +55,64 @@ class CodeGenPoCC final : public CodeGenC {
   void VisitStmt_(const IfThenElse* op) final; // NOLINT(*)
   void VisitStmt_(const Store* op) final; // NOLINT(*)
   void VisitStmt_(const Allocate* op) final; // NOLINT(*)
+
   // overload buffer parsing
   std::string GetBufferRef(Type t, const Variable* buffer, Expr index) final; // NOLINT(*)
+  
   // functions to manipulate SCoP matrices
   std::string CreateDelimiter(std::string symbol); // NOLINT(*)
+
   void IncrStmtNum(); // NOLINT(*)
   int GetStmtNum(); // NOLINT(*)
+
   void SetScatFuncStat(); // NOLINT(*)
   bool GetScatFuncStat(); // NOLINT(*)
+
   void SetAccessFuncStat(); // NOLINT(*)
+  void ResetAccessFuncStat(); // NOLINT(*)
   bool GetAccessFuncStat(); // NOLINT(*)
+
   int GetTotalNumStmts(); // NOLINT(*)
-  void PushIterBounds(iter_bounds ib);
-  void PopIterBounds();
-  int SizeIterBounds();
+
+  void PushIterBounds(iter_bounds ib);  // NOLINT(*)
+  void PopIterBounds(); // NOLINT(*)
+  int SizeIterBounds(); // NOLINT(*)
+
+  void UpdateIterCoeff(std::string vid, std::string iterator, std::string coeff); // NOLINT(*)
+  int SizeIterCoeff(); // NOLINT(*)
+
   std::vector<iter_bounds> GetIterBounds();
 
   void InsertParams(std::string); // NOLINT(*)
   int GetParams(); // NOLINT(*)
-  bool IsParamEmpty();
-  std::string WriteParams(); 
-  // Add column
-  // Add rows
+  bool IsParamEmpty();  // NOLINT(*)
+  std::string WriteParams();    // NOLINT(*)
 
   // functions to readout the matrices
-  std::string WriteIterDomMatrix();
+  std::string WriteIterDomMatrix(); // NOLINT(*)
+  std::string WriteWAccessMatrix(); // NOLINT(*)
+  //std::string WriteRAccessMatrix(); // NOLINT(*)
+
+  // generic functions
+  std::vector<std::string> Split(const std::string &s, char delim); // NOLINT(*)
+  std::string Strip(const std::string &s); // NOLINT(*)
+  std::string Index(std::string vid);
+  void MapVid(std::string vid); // NOLINT(*)
 
  private:
   /*! \brief SCoP matrices */
+  std::vector<std::string> vid_map;
+  // First key is vid, second key is iterator and then the value is the value of the iterator
+  std::unordered_map<std::string, std::unordered_map<std::string, std::string>> iterator_coeff_dict;
+  std::vector<std::string> read_write_variable;
   std::vector<std::string> parameters;
-  std::vector<iter_bounds> iterators;                  // e/i | iterators | params | const
+  std::vector<iter_bounds> iterators;
+  std::vector<std::string> iterator_sequence;
   //std::vector<std::vector<int>> scattering;          // root | iterators | params | const
   //std::vector<std::vector<int>> read_access;         // array ident | iterators | params | const
   //std::vector<std::vector<int>> write_access;       // array ident | iterators | params | const
 
   std::queue<std::string> statements;
-  std::queue<std::string> iteration_domain;
   int no_of_stmt{0};
   bool scat_func_stmt{false};
   bool access_func_stmt{false};
