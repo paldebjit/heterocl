@@ -63,16 +63,12 @@ void CodeGenPoCC::SetScatFuncStat() {
     scat_func_stmt = true;
 }
 
-bool CodeGenPoCC::GetScatFuncStat() {
-    return scat_func_stmt;
+void CodeGenPoCC::ResetScatFuncStat() {
+    scat_func_stmt = false;
 }
 
-int CodeGenPoCC::GetTotalNumStmts() {
-    if (!statements.empty()) {
-        return statements.size();
-    } else {
-        return 0;
-    }
+bool CodeGenPoCC::GetScatFuncStat() {
+    return scat_func_stmt;
 }
 
 void CodeGenPoCC::InsertParams(std::string param) {
@@ -129,7 +125,19 @@ int CodeGenPoCC::Index(std::string vid, std::vector<std::string> vmap) {
     return index;
 }
 
-std::string CodeGenPoCC::WriteScatteringMatrix() {
+std::string CodeGenPoCC::WriteMatrix(std::vector<std::vector<std::string>> matrix_) {
+    std::string matrix{""};
+    for (auto vec: matrix_) {
+        matrix = matrix + "   ";
+        for (auto x: vec) {
+            matrix = matrix + x + "\t";
+        }
+        matrix = matrix + "\n";
+    }
+    return matrix;
+}
+
+std::string CodeGenPoCC::ConstructScatteringMatrix() {
     std::string matrix{""};
     // root | iterators | paramaters | constant
     int no_of_cols = 1 + curr_iterators.size() + this->GetParams() + 1;
@@ -162,19 +170,13 @@ std::string CodeGenPoCC::WriteScatteringMatrix() {
         matrix_[row] = row2;
         row++;
     }
-
-    for (auto vec: matrix_) {
-        matrix = matrix + "   ";
-        for (auto x: vec) {
-            matrix = matrix + x + "\t";
-        }
-        matrix = matrix + "\n";
-    }
+    
+    matrix += this->WriteMatrix(matrix_);
 
     return matrix;
 }
 
-std::string CodeGenPoCC::WriteReadWriteAccessMatrix() {
+std::string CodeGenPoCC::ConstructReadWriteAccessMatrix() {
     std::string matrix{""};
     // vid | iterators | parameters | constant
     int no_of_cols = 1 + this->SizeIterCoeff() + this->GetParams() + 1;
@@ -195,17 +197,23 @@ std::string CodeGenPoCC::WriteReadWriteAccessMatrix() {
         if(found != iterator_coeff_dict.end()){
             std::cout << "Found RW_var: " << rw_var << "\n";
             iterator_coeff_dict_ = found->second;
+        } else {
+            rw_expr = rw_expr + "0]";
+            row1[no_of_cols] = rw_expr;
+            matrix_[row] = row1;
+            row++;
+            continue;
         }
-        for (size_t i = 0; i < iterator_sequence.size(); i++) {
-            std::cout << "Iterator cofficient: " << iterator_sequence[i] << "\n";
-            auto found = iterator_coeff_dict_.find(iterator_sequence[i]);
+        for (size_t i = 0; i < curr_iterators.size(); i++) {
+            std::cout << "Iterator cofficient: " << curr_iterators[i] << "\n";
+            auto found = iterator_coeff_dict_.find(curr_iterators[i]);
             if (found != iterator_coeff_dict_.end()) {
                 std::cout << "Iterator coefficient found: " << found->second << "\n";
                 row1[i + 1] = found->second;
-                if (i == iterator_sequence.size() - 1) {
-                    rw_expr = rw_expr + found->second + "*" + iterator_sequence[i];
+                if (i == curr_iterators.size() - 1) {
+                    rw_expr = rw_expr + found->second + "*" + curr_iterators[i];
                 } else {
-                    rw_expr = rw_expr + found->second + "*" + iterator_sequence[i] + "+";
+                    rw_expr = rw_expr + found->second + "*" + curr_iterators[i] + "+";
                 }
             }
         }
@@ -215,18 +223,12 @@ std::string CodeGenPoCC::WriteReadWriteAccessMatrix() {
         row++;
     }
 
-    for (auto vec: matrix_) {
-        matrix = matrix + "   ";
-        for (auto x: vec) {
-            matrix = matrix + x + "\t";
-        }
-        matrix = matrix + "\n";
-    }
+    matrix += this->WriteMatrix(matrix_);
 
     return matrix;
 }
 
-std::string CodeGenPoCC::WriteIterDomMatrix() {
+std::string CodeGenPoCC::ConstructIterDomMatrix() {
     std::string matrix{""};
     // e/i | iterators | parameters | constant
     int no_of_cols = 1 + this->SizeIterBounds() + this->GetParams() + 1;
@@ -264,35 +266,68 @@ std::string CodeGenPoCC::WriteIterDomMatrix() {
         row2[no_of_cols] = "## -" + iterator + " + " + ub + " >= 0";
         matrix_[row] = row2;
         row++;
-
-        iterator_sequence.push_back(iterator);
     }
 
-    for (auto vec: matrix_) {
-        matrix = matrix + "   ";
-        for (auto x: vec) {
-            matrix = matrix + x + "\t";
-        }
-        matrix = matrix + "\n";
-    }
+    matrix += this->WriteMatrix(matrix_);
 
     return matrix;
 }
 
-
-void CodeGenPoCC::AddFunction(LoweredFunc f,
-        str2tupleMap<std::string, Type> map_arg_type) {
-  // Clear previous generated state
-  this->InitFuncState(f);
-
-  // Skip the first underscore, so SSA variable starts from _1
-  GetUniqueName("_");
-
-  // Register alloc buffer type
-  for (const auto & kv : f->handle_data_type) {
-    RegisterHandleType(kv.first.get(), kv.second.type());
+void CodeGenPoCC::ConstructSCoP(std::string statement) {
+  pocc_stream << CreateDelimiter("=") << "Statement " << this->GetStmtNum() << "\n";
+  pocc_stream << CreateDelimiter("-") << this->GetStmtNum() << ".1 Domain" << "\n";
+  pocc_stream << "# Iteration domain\n";
+  pocc_stream << "1\n";
+  pocc_stream << iter_domain_matrix;
+  pocc_stream << "\n";
+  pocc_stream << CreateDelimiter("-") << this->GetStmtNum() << ".2 Scattering" << "\n";
+  if (this->GetScatFuncStat()) {
+      pocc_stream << "# Scattering function is provided\n";
+      pocc_stream << "1\n";
+      pocc_stream << "# Scattering function\n";
+      pocc_stream << scattering_matrix;
+      this->ResetScatFuncStat();
+  } else {
+      pocc_stream << "# Scattering function is not provided\n";
+      pocc_stream << "0\n";
   }
+  pocc_stream << "\n";
+  pocc_stream << CreateDelimiter("-") << this->GetStmtNum() << ".3 Access" << "\n";
+  if (this->GetAccessFuncStat()) {
+      pocc_stream << "# Access informations are provided\n";
+      pocc_stream << "1\n";
+      pocc_stream << "# Read access informations\n";
+      pocc_stream << read_access_matrix;
+      pocc_stream << "\n";
+      pocc_stream << "# Write access informations\n";
+      pocc_stream << write_access_matrix;
+      pocc_stream << "\n";
+      this->ResetAccessFuncStat();
+  } else {
+      pocc_stream << "# Access informations are not provided\n";
+      pocc_stream << "0\n";
+  }
+  pocc_stream << CreateDelimiter("-") << this->GetStmtNum() << ".4 Body" << "\n";
+  pocc_stream << "# Statement body is provided\n";
+  pocc_stream << "1\n";
+  pocc_stream << "# Original iterator names\n";
+  
+  std::string iterator_names{""};
+  size_t iterator_num = curr_iterators.size();
+  for (size_t i = 0; i < iterator_num; i++) {
+      if (i == iterator_num - 1){
+          iterator_names = iterator_names + curr_iterators[i];
+      } else {
+          iterator_names = iterator_names + curr_iterators[i] + " ";
+      }
+  }
+  pocc_stream << iterator_names <<"\n";
+  pocc_stream << "# Statement body\n";
+  pocc_stream << statement << ";\n";
+  pocc_stream << "\n\n";
+}
 
+void CodeGenPoCC::WriteSCoP() {
   // Write header files
   this->stream << "# [File generated by HeteroCL]\n";
   this->stream << "\n";
@@ -317,6 +352,26 @@ void CodeGenPoCC::AddFunction(LoweredFunc f,
       this->stream << "\n";
   }
 
+  this->stream << "# Number of statements\n";
+  this->stream << this->GetStmtNum() << "\n";
+  this->stream << "\n";
+  this->stream << pocc_stream.str();
+  this->stream << CreateDelimiter("=") << "Options";
+}
+
+void CodeGenPoCC::AddFunction(LoweredFunc f,
+        str2tupleMap<std::string, Type> map_arg_type) {
+  // Clear previous generated state
+  this->InitFuncState(f);
+
+  // Skip the first underscore, so SSA variable starts from _1
+  GetUniqueName("_");
+
+  // Register alloc buffer type
+  for (const auto & kv : f->handle_data_type) {
+    RegisterHandleType(kv.first.get(), kv.second.type());
+  }
+
   // Write arguments
   // FIXME: Don't know why removing the for loop creates a Codegen error. Has to ask.
   for (size_t i = 0; i < f->args.size(); ++i) {
@@ -329,10 +384,7 @@ void CodeGenPoCC::AddFunction(LoweredFunc f,
   this->EndScope(func_scope);
   this->PrintIndent();
 
-  this->stream << "# Number of statements\n";
-  this->stream << this->GetTotalNumStmts() << "\n";
-  this->stream << "\n";
-  this->stream << CreateDelimiter("=") << "Options";
+  this->WriteSCoP();
 }
 
 std::string CodeGenPoCC::Finish() {
@@ -340,7 +392,7 @@ std::string CodeGenPoCC::Finish() {
 }
 
 void CodeGenPoCC::BindThreadIndex(const IterVar& iv) {
-  LOG(FATAL) << "Merlin doesn't support thread binding";
+  LOG(FATAL) << "PoCC doesn't support thread binding";
   return ;
 }
 
@@ -350,6 +402,7 @@ void CodeGenPoCC::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
 void CodeGenPoCC::PrintVecAddr(const Variable* buffer, Type t,
                                  Expr base, std::ostream& os) {  // NOLINT(*)
   // FIXME: What's this node for?
+  // this->ResetAccessFuncStat();
   if (!HandleTypeMatch(buffer, t.element_of())) {
     os << '(';
     auto it = alloc_storage_scope_.find(buffer);
@@ -494,19 +547,19 @@ void CodeGenPoCC::VisitStmt_(const Allocate* op) {
 void CodeGenPoCC::VisitStmt_(const Store* op) {
   Type t = op->value.type();
   if (t.lanes() == 1) {
-    std::string iter_domain_matrix = this->WriteIterDomMatrix();
+    iter_domain_matrix = this->ConstructIterDomMatrix();
 
     std::string value = this->PrintExpr(op->value);
-    std::string read_access_matrix =  this->WriteReadWriteAccessMatrix();   
-    // The step is needed to ensure that the coefficients from the read
-    // access are cleared
+    read_access_matrix =  this->ConstructReadWriteAccessMatrix();   
+    /* The step is needed to ensure that the coefficients from the read
+     * access are cleared */
     read_write_variable.clear();
     iterator_coeff_dict.clear();
 
     std::string ref = this->GetBufferRef(t, op->buffer_var.get(), op->index);
-    std::string write_access_matrix = this->WriteReadWriteAccessMatrix();
-    // This step is needed to ensure that the coefficient from the write
-    // access are cleared
+    write_access_matrix = this->ConstructReadWriteAccessMatrix();
+    /* This step is needed to ensure that the coefficients from the write
+     * access are cleared */
     read_write_variable.clear();
     iterator_coeff_dict.clear();
 
@@ -519,7 +572,8 @@ void CodeGenPoCC::VisitStmt_(const Store* op) {
         }
     }
     std::cout << "\n";
-    std::string scattering_matrix = this->WriteScatteringMatrix();
+
+    scattering_matrix = this->ConstructScatteringMatrix();
 
     std::string back = curr_iterators.back();
     auto found = schedule.find(back);
@@ -531,57 +585,8 @@ void CodeGenPoCC::VisitStmt_(const Store* op) {
     this->SetAccessFuncStat();
     this->SetScatFuncStat();
 
-    stream << CreateDelimiter("=") << "Statement " << this->GetStmtNum() << "\n";
-    stream << CreateDelimiter("-") << this->GetStmtNum() << ".1 Domain" << "\n";
-    stream << "# Iteration domain\n";
-    stream << "1\n";
-    stream << iter_domain_matrix;
-    stream << "\n";
-    stream << CreateDelimiter("-") << this->GetStmtNum() << ".2 Scattering" << "\n";
-    if (this->GetScatFuncStat()) {
-        stream << "# Scattering function is provided\n";
-        stream << "1\n";
-        stream << "# Scattering function\n";
-        stream << scattering_matrix;
-    } else {
-        stream << "# Scattering function is not provided\n";
-        stream << "0\n";
-    }
-    stream << "\n";
-    stream << CreateDelimiter("-") << this->GetStmtNum() << ".3 Access" << "\n";
-    if (this->GetAccessFuncStat()) {
-        stream << "# Access informations are provided\n";
-        stream << "1\n";
-        stream << "# Read access informations\n";
-        stream << read_access_matrix;
-        stream << "\n";
-        stream << "# Write access informations\n";
-        stream << write_access_matrix;
-        stream << "\n";
-    } else {
-        stream << "# Access informations are not provided\n";
-        stream << "0\n";
-    }
-    stream << CreateDelimiter("-") << this->GetStmtNum() << ".4 Body" << "\n";
-    stream << "# Statement body is provided\n";
-    stream << "1\n";
-    stream << "# Original iterator names\n";
-    
-    std::string iterator_names{""};
-    size_t iterator_num = iterator_sequence.size();
-    for (size_t i = 0; i < iterator_num; i++) {
-        if (i == iterator_num - 1){
-            iterator_names = iterator_names + iterator_sequence[i];
-        } else {
-            iterator_names = iterator_names + iterator_sequence[i] + " ";
-        }
-    }
-    stream << iterator_names <<"\n";
-    stream << "# Statement body\n";
-    stream << ref << " = " << value << ";\n";
-    statements.push(ref + " = " + value);
-    stream << "\n\n";
-    iterator_sequence.clear();
+    std::string statement = ref + " = " + value;
+    this->ConstructSCoP(statement);
   }
 }
 
