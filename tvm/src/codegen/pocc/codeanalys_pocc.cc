@@ -40,7 +40,6 @@ void CodeAnalysPoCC::AddFunction(LoweredFunc f) {
     this->map_arg_type_[vid];
   }
   int func_scope = this->BeginScope();
-  std::cout << "DP: Inside CodeAnalysPoCC::AddFunction()\n";
   VisitStmt(f->body);
   this->EndScope(func_scope);
 }

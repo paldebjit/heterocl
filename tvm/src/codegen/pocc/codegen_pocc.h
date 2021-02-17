@@ -138,7 +138,7 @@ class CodeGenPoCC final : public CodeGenC {
   std::vector<iter_bounds> iterators;
   /*! \brief Storing the iterator sequence on the fly per statement.*/
   std::vector<std::string> curr_iterators;
-  /*! \brief Storing the scatterng matrix per statement in 2d + 1 format where `d' is the 
+  /*! \brief Storing the schedule per statement in 2d + 1 format where `d' is the 
    * loop nest depth of a given statement.*/ 
   std::unordered_map<std::string, int> schedule;
     
@@ -149,9 +149,13 @@ class CodeGenPoCC final : public CodeGenC {
   /*! \brief To store read/write access function status per statement. */
   bool access_func_stmt{false};
 
+  /*! \brief Temporarily store the iteration domain matrix as a string per statement.*/
   std::string iter_domain_matrix;
+  /*! \brief Temporarily store the read access matrix as a string per statement.*/
   std::string read_access_matrix;
+  /*! \brief Temporarily store the write access matrix as a string per statement.*/
   std::string write_access_matrix;
+  /*! \brief Temporarily store the scattering domain matrix as a string per statement.*/
   std::string scattering_matrix;
 };
 
