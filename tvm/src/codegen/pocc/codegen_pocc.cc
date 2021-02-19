@@ -103,6 +103,7 @@ int CodeGenPoCC::SizeIterCoeff() {
     return iterator_coeff_dict.size();
 }
 
+
 int CodeGenPoCC::Index(std::string vid, std::vector<std::string> vmap) {
     int index{-1};
     auto it = std::find(vmap.begin(), vmap.end(), vid);
@@ -209,10 +210,11 @@ std::string CodeGenPoCC::ConstructScatteringMatrix() {
     return matrix;
 }
 
+// FIXME: Will change based on the multidimensional array presentation
 std::string CodeGenPoCC::ConstructReadWriteAccessMatrix() {
     std::string matrix{""};
     // vid | iterators | parameters | constant
-    int no_of_cols = 1 + this->SizeIterCoeff() + this->GetParams() + 1;
+    int no_of_cols = 1 + curr_iterators.size() + this->GetParams() + 1;
     int no_of_rows = read_write_variable.size();
 
     matrix +=  std::to_string(no_of_rows) + " " + std::to_string(no_of_cols) + "\n";
@@ -430,7 +432,6 @@ void CodeGenPoCC::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
 void CodeGenPoCC::PrintVecAddr(const Variable* buffer, Type t,
                                  Expr base, std::ostream& os) {  // NOLINT(*)
   // FIXME: What's this node for?
-  // this->ResetAccessFuncStat();
   if (!HandleTypeMatch(buffer, t.element_of())) {
     os << '(';
     auto it = alloc_storage_scope_.find(buffer);
@@ -505,6 +506,7 @@ void CodeGenPoCC::VisitStmt_(const LetStmt* op) {
 
 
 void CodeGenPoCC::VisitStmt_(const For* op) {
+  // FIXME: extent j = 18 + 2 * i + N
   std::string extent = PrintExpr(op->extent);
   std::string min = PrintExpr(op->min);
   std::string vid = AllocVarID(op->loop_var.get());
@@ -645,15 +647,32 @@ std::string CodeGenPoCC::GetBufferRef(Type t, const Variable* buffer, Expr index
           expr_.erase(std::remove(expr_.begin(), expr_.end(), to_remove_), expr_.end());
       }
 
+      // FIXME: For an expression 2 * x + 5 * y + N, this routine will treat N as 
+      //        an iteration coefficient as well. 
+      //        To fix this, do the follwoing:
+      //        i) Check the token/token_[0] against iterators.
+      //            a) if found put it inside UpdateIterCoeff
+      //            b) if not found put it inside UpdateParamCoeff
+      // NOTE:  Implemented. Need to check.
       std::vector<std::string> tokens;
       tokens = this->Split(expr_, '+');
       for (auto token: tokens) {
           bool found = token.find("*") != std::string::npos;
           if (!found) {
-              this->UpdateIterCoeff(vid, token, "1");
+              bool found_ = std::find(curr_iterators.begin(), curr_iterators.end(), token) != curr_iterators.end();
+              if(!found_) {
+                  this->UpdateParamCoeff(vid, token, "1");
+              } else {
+                  this->UpdateIterCoeff(vid, token, "1");
+              }
           } else {
               std::vector<std::string> token_ = this->Split(token, '*');
-              this->UpdateIterCoeff(vid, token_[0], token_[1]);
+              bool found_ = std::find(curr_iterators.begin(), curr_iterators.end(), token_[0]) != curr_iterators.end();
+              if(!found_) {
+                  this->UpdateParamCoeff(vid, token_[0], token_[1]);
+              } else {
+                  this->UpdateIterCoeff(vid, token_[0], token_[1]);
+              }
           }
       }
     }
@@ -671,6 +690,15 @@ void CodeGenPoCC::UpdateIterCoeff(std::string vid, std::string iterator, std::st
     }
 }
 
+void CodeGenPoCC::UpdateParamCoeff(std::string vid, std::string parameter, std::string coeff) {
+    auto found = parameter_coeff_dict.find(vid);
+    if (found != parameter_coeff_dict.end()) {
+        parameter_coeff_dict[vid].insert({parameter, coeff});
+    } else {
+        std::unordered_map<std::string, std::string> param_coeff = {{parameter, coeff}};
+        parameter_coeff_dict.insert({vid, param_coeff});
+    }
+}
 
 void CodeGenPoCC::VisitStmt_(const IfThenElse* op) {
   std::string cond = PrintExpr(op->condition);
