@@ -13,6 +13,7 @@
 #include <tuple>
 #include <sstream>
 #include <iomanip>
+#include <regex>
 #include "./codeanalys_pocc.h"
 #include "../codegen_c.h"
 
@@ -96,6 +97,7 @@ class CodeGenPoCC final : public CodeGenC {
   bool IsParamEmpty();  // NOLINT(*)
   std::string WriteParams();    // NOLINT(*)
   void UpdateParamCoeff(std::string vid, std::string parameter, std::string coeff); // NOLINT(*)
+  void UpdateConstantCoeff(std::string vid, std::string constant); // NOLINT(*)
 
   // Functions to write SCoP component matrices
   std::string ConstructContextMatrix(); // NOLINT(*)
@@ -112,7 +114,9 @@ class CodeGenPoCC final : public CodeGenC {
   // Generic string manipulation functions
   std::vector<std::string> Split(const std::string &s, char delim); // NOLINT(*)
   std::string Strip(const std::string &s); // NOLINT(*)
-  int Index(std::string vid, std::vector<std::string> vmap);
+  std::string Join(std::vector<std::string> v, std::string delim);
+  int Index(std::string vid, std::vector<std::string> vmap); // NOLINT(*)
+  bool IsNumeric(std::string &s); // NOLINT(*)
 
  private:
   /*! \brief PoCC specific stream to store all polyhedral model/SCoP info temporaily
@@ -131,14 +135,19 @@ class CodeGenPoCC final : public CodeGenC {
    * read/write access temporarily. The format is the following:
    * <Read/Write_Variable_Name, <Iterator_Name, Iterator_Coefficicent>>. Reused across
    * different read/write access.*/
+
+  // FIXME: How can I tackle multiple dimesnion of the array in this same structure?
   std::unordered_map<std::string, std::unordered_map<std::string, std::string>> iterator_coeff_dict;
   /*! \brief To store the parameter coefficicents in the indices of a variable per 
    * read/write access temporarily. The format is the following:
    * <Read/Write_Variable_Name, <Parameter_Name, Parameter_Coefficicent>>. Reused across
    * different read/write access.*/
   std::unordered_map<std::string, std::unordered_map<std::string, std::string>> parameter_coeff_dict;
-  /*! \brief A reusable string vector to store read/write variable per statement of the form 
-   * ref = value; */
+  /*! \brief To store the constant in the indices of a variable per 
+   * read/write access temporarily. The format is the following:
+   * <Read/Write_Variable_Name, Constant>. Reused across different read/write access.*/
+  std::unordered_map<std::string, std::string> constant_coeff_dict;
+  /*! \brief A reusable string vector to store read/write variable per statement.*/
   std::vector<std::string> read_write_variable;
   /*! \brief To store the (vid, lower bound) and (vid, upper bound) for each of the iterators
    * per statement. Reusable.*/

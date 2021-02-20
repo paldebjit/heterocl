@@ -139,6 +139,18 @@ std::string CodeGenPoCC::Strip(const std::string &s) {
     return std::string(start, end.base());
 }
 
+std::string CodeGenPoCC::Join(std::vector<std::string> v, std::string delim) {
+    std::string s{""};
+    for (size_t i = 0; i < v.size(); i++) {
+        if (i == v.size() - 1) {
+            s = s + v[i];
+        } else {
+            s = s + v[i] + delim;
+        }
+    }
+    return s;
+}
+
 void CodeGenPoCC::MapVid(std::string vid) {
     read_write_variable.push_back(vid);
     if (std::find(vid_map.begin(), vid_map.end(), vid) == vid_map.end()) {
@@ -147,26 +159,13 @@ void CodeGenPoCC::MapVid(std::string vid) {
 }
 
 std::string CodeGenPoCC::WriteParams() {
-    size_t param_size_ = this->GetParams();
-    std::string param_name{""};
-    for (size_t i = 0; i < param_size_; i++) {
-        if(i == param_size_ - 1) {
-            param_name = param_name + parameters[i];
-        } else {
-            param_name = param_name + parameters[i] + " ";
-        }
-    }
-    return param_name;
+    return this->Join(parameters, " ");
 }
 
 std::string CodeGenPoCC::WriteMatrix(std::vector<std::vector<std::string>> matrix_) {
     std::string matrix{""};
     for (auto vec: matrix_) {
-        matrix = matrix + "   ";
-        for (auto x: vec) {
-            matrix = matrix + x + "\t";
-        }
-        matrix = matrix + "\n";
+        matrix = matrix + "   " + this->Join(vec, "\t") + "\n";
     }
     return matrix;
 }
@@ -210,6 +209,8 @@ std::string CodeGenPoCC::ConstructScatteringMatrix() {
     return matrix;
 }
 
+
+
 // FIXME: Will change based on the multidimensional array presentation
 std::string CodeGenPoCC::ConstructReadWriteAccessMatrix() {
     std::string matrix{""};
@@ -238,18 +239,28 @@ std::string CodeGenPoCC::ConstructReadWriteAccessMatrix() {
             row++;
             continue;
         }
+        // FIXME: Tackle dimension here [i][j][k]. Do I need to do? HeteroCL seems to be flattening
+        //        everythign.
+        //        As of now only a * i + b * j can work
+        std::vector<std::string> v;
         for (size_t i = 0; i < curr_iterators.size(); i++) {
             auto found = iterator_coeff_dict_.find(curr_iterators[i]);
             if (found != iterator_coeff_dict_.end()) {
                 row1[i + 1] = found->second;
-                if (i == curr_iterators.size() - 1) {
-                    rw_expr = rw_expr + found->second + "*" + curr_iterators[i];
-                } else {
-                    rw_expr = rw_expr + found->second + "*" + curr_iterators[i] + "+";
-                }
+                v.push_back(found->second + "*" + curr_iterators[i]);
             }
         }
-        rw_expr = rw_expr + "]";
+        rw_expr = rw_expr + this->Join(v, "+");
+        v.clear();
+        // NOTE: Now adding the constants
+        auto foundc = constant_coeff_dict.find(rw_var);
+        if (foundc != constant_coeff_dict.end()) {
+            std::string constant = foundc->second;
+            row1[no_of_cols - 1] = constant;
+            rw_expr = rw_expr + "+" + constant + "]";
+        } else {
+            rw_expr = rw_expr + "]";
+        }
         row1[no_of_cols] = rw_expr;
         matrix_[row] = row1;
         row++;
@@ -580,6 +591,7 @@ void CodeGenPoCC::VisitStmt_(const Store* op) {
      * access are cleared */
     read_write_variable.clear();
     iterator_coeff_dict.clear();
+    constant_coeff_dict.clear();
 
     std::string ref = this->GetBufferRef(t, op->buffer_var.get(), op->index);
     write_access_matrix = this->ConstructReadWriteAccessMatrix();
@@ -587,6 +599,7 @@ void CodeGenPoCC::VisitStmt_(const Store* op) {
      * access are cleared */
     read_write_variable.clear();
     iterator_coeff_dict.clear();
+    constant_coeff_dict.clear();
 
     scattering_matrix = this->ConstructScatteringMatrix();
 
@@ -653,10 +666,17 @@ std::string CodeGenPoCC::GetBufferRef(Type t, const Variable* buffer, Expr index
       //        i) Check the token/token_[0] against iterators.
       //            a) if found put it inside UpdateIterCoeff
       //            b) if not found put it inside UpdateParamCoeff
-      // NOTE:  Implemented. Need to check.
+      // NOTE:  Implemented above. Need to check.
+      // FIXME: How to tackle stencil kind of array?
       std::vector<std::string> tokens;
       tokens = this->Split(expr_, '+');
       for (auto token: tokens) {
+          // Matching constants
+          if(this->IsNumeric(token)) {
+              this->UpdateConstantCoeff(vid, token);
+              continue;
+          }
+          // Matching iterators and parameters
           bool found = token.find("*") != std::string::npos;
           if (!found) {
               bool found_ = std::find(curr_iterators.begin(), curr_iterators.end(), token) != curr_iterators.end();
@@ -680,6 +700,11 @@ std::string CodeGenPoCC::GetBufferRef(Type t, const Variable* buffer, Expr index
   return os.str();
 }
 
+bool CodeGenPoCC::IsNumeric(std::string &s) {
+    return !s.empty() && std::find_if(s.begin(),
+            s.end(), [](unsigned char c) { return !std::isdigit(c); }) == s.end();
+}
+
 void CodeGenPoCC::UpdateIterCoeff(std::string vid, std::string iterator, std::string coeff) {
     auto found = iterator_coeff_dict.find(vid);
     if (found != iterator_coeff_dict.end()) {
@@ -698,6 +723,13 @@ void CodeGenPoCC::UpdateParamCoeff(std::string vid, std::string parameter, std::
         std::unordered_map<std::string, std::string> param_coeff = {{parameter, coeff}};
         parameter_coeff_dict.insert({vid, param_coeff});
     }
+}
+
+// NOTE:Every index fo ran array access can possibly have at most one constant
+//      However, in unlikely case there are multiple constants, we can augment 
+//      this function to handle that.
+void CodeGenPoCC::UpdateConstantCoeff(std::string vid, std::string constant) {
+    constant_coeff_dict.insert({vid, constant});
 }
 
 void CodeGenPoCC::VisitStmt_(const IfThenElse* op) {
