@@ -113,13 +113,48 @@ int CodeGenPoCC::Index(std::string vid, std::vector<std::string> vmap) {
     return index;
 }
 
-std::vector<std::string> CodeGenPoCC::Split(const std::string &s, char delim) {
+std::vector<std::string> CodeGenPoCC::Split(const std::string s, char delim) {
     std::vector<std::string> result;
     std::stringstream ss (s);
     std::string item;
 
+    bool has_seen = false;
+
     while (getline(ss, item, delim)) {
-        result.push_back(this->Strip(item));
+        if (item.empty()) {
+            has_seen = true;
+            continue;
+        }
+        if ((delim == '-') & has_seen) {
+            result.push_back("-" + this->Strip(item));
+        } else if ((delim == '-') & !has_seen) { 
+            result.push_back(this->Strip(item));
+            has_seen = true;
+        } else {
+            result.push_back(this->Strip(item));
+        }
+    }
+    return result;
+}
+
+std::vector<std::string> CodeGenPoCC::Split(const std::string s, std::string delim) {
+    std::vector<std::string> result;
+
+    result.push_back(s);
+
+    for (auto delim_: delim) {
+        std::vector<std::string> result_;
+        for (auto s_: result) {
+            std::vector<std::string> result__ = this->Split(s_, delim_);
+            result_.insert(
+                    result_.end(),
+                    std::make_move_iterator(result__.begin()),
+                    std::make_move_iterator(result__.end())
+                    );
+            result__.clear();
+        }
+        result = result_;
+        result_.clear();
     }
 
     return result;
@@ -516,11 +551,67 @@ void CodeGenPoCC::VisitStmt_(const LetStmt* op) {
 }
 
 
+void UpdateIterCoefficient(std::string vid, std::string s, std::string coeff) {
+    auto found = iterator_coeff_dict.find(vid);
+    if (found != iterator_coeff_dict.end()) {
+        iterator_coeff_dict[vid].insert({iterator, coeff});
+    } else {
+        std::unordered_map<std::string, std::string> iter_coeff = {{iterator, coeff}};
+        iterator_coeff_dict.insert({vid, iter_coeff});
+    }
+}
+
 void CodeGenPoCC::VisitStmt_(const For* op) {
   // FIXME: extent j = 18 + 2 * i + N
   std::string extent = PrintExpr(op->extent);
   std::string min = PrintExpr(op->min);
   std::string vid = AllocVarID(op->loop_var.get());
+
+  char to_remove[] = "()";
+  
+  for (auto to_remove_ : to_remove) {
+      extent.erase(std::remove(extent.begin(), extent.end(), to_remove_), extent.end());
+  }
+
+  std::cout << "Extent is: " << extent << "\n";
+  std::vector<std::string> tokens;
+  tokens = this->Split(extent, "+-");
+
+  for (auto token: tokens) {
+      std::cout << "Token from For*: " << token << "\n";
+  }
+  
+  for (auto token: tokens) {
+      // Checking for - sign at the begining
+      std::string sign{""};
+      if(token[0] == '-') {
+          token = token.substr(1);
+          sign = "-";
+      }
+      // Matching constants
+      if(this->IsNumeric(token)) {
+          this->UpdateConstantCoeff(vid, sign + token);
+          continue;
+      }
+      // Matching iterators and parameters
+      bool found = token.find("*") != std::string::npos;
+      if (!found) {
+          bool found_ = std::find(curr_iterators.begin(), curr_iterators.end(), token) != curr_iterators.end();
+          if(!found_) {
+              this->UpdateParamCoeff(vid, token, sign + "1");
+          } else {
+              this->UpdateIterCoeff(vid, token, sign + "1");
+          }
+      } else {
+          std::vector<std::string> token_ = this->Split(token, '*');
+          bool found_ = std::find(curr_iterators.begin(), curr_iterators.end(), token_[0]) != curr_iterators.end();
+          if(!found_) {
+              this->UpdateParamCoeff(vid, token_[0], sign + token_[1]);
+          } else {
+              this->UpdateIterCoeff(vid, token_[0], sign + token_[1]);
+          }
+      }
+  }
 
   iter_bounds ib;
   ib.LB = make_tuple(vid, min);
@@ -738,26 +829,31 @@ void CodeGenPoCC::VisitStmt_(const IfThenElse* op) {
   // Skip the buffer data checking
   if (std::regex_match(cond, std::regex("!\\((arg)(.+)(== NULL)\\)")))
       return ;
-
+  /*
   PrintIndent();
   if (cond[0] == '(' && cond[cond.length() - 1] == ')') {
     stream << "if " << cond << " {\n";
   } else {
     stream << "if (" << cond << ") {\n";
   }
+  */
   int then_scope = BeginScope();
   PrintStmt(op->then_case);
   this->EndScope(then_scope);
 
   if (op->else_case.defined()) {
+    /*
     PrintIndent();
     stream << "} else {\n";
+    */
     int else_scope = BeginScope();
     PrintStmt(op->else_case);
     this->EndScope(else_scope);
   }
+  /*
   PrintIndent();
   stream << "}\n";
+  */
 }
 
 inline void PrintConst(const IntImm* op, std::ostream& os, CodeGenPoCC* p) { // NOLINT(*)

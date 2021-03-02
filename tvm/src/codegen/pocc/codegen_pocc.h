@@ -14,6 +14,7 @@
 #include <sstream>
 #include <iomanip>
 #include <regex>
+#include <iterator>
 #include "./codeanalys_pocc.h"
 #include "../codegen_c.h"
 
@@ -83,12 +84,15 @@ class CodeGenPoCC final : public CodeGenC {
   // per loop nest (scope wise)
   void PushIterBounds(iter_bounds ib);  // NOLINT(*)
   void PopIterBounds(); // NOLINT(*)
+  void UpdateIterCoefficient(std::string vid, std::string s, std::string coeff); // NOLINT(*)
   int SizeIterBounds(); // NOLINT(*)
   std::vector<iter_bounds> GetIterBounds(); // NOLINT(*)
 
   // To keep track of array access index coefficientis per read/write array
   // For scalar, it is treated as a vector of length 1
   void UpdateIterCoeff(std::string vid, std::string iterator, std::string coeff); // NOLINT(*)
+  void UpdateParamCoeff(std::string vid, std::string parameter, std::string coeff); // NOLINT(*)
+  void UpdateConstantCoeff(std::string vid, std::string constant); // NOLINT(*)
   int SizeIterCoeff(); // NOLINT(*)
 
   // To tackle any parameters.
@@ -96,8 +100,6 @@ class CodeGenPoCC final : public CodeGenC {
   int GetParams(); // NOLINT(*)
   bool IsParamEmpty();  // NOLINT(*)
   std::string WriteParams();    // NOLINT(*)
-  void UpdateParamCoeff(std::string vid, std::string parameter, std::string coeff); // NOLINT(*)
-  void UpdateConstantCoeff(std::string vid, std::string constant); // NOLINT(*)
 
   // Functions to write SCoP component matrices
   std::string ConstructContextMatrix(); // NOLINT(*)
@@ -112,7 +114,8 @@ class CodeGenPoCC final : public CodeGenC {
   void WriteSCoP(); // NOLINT(*)
 
   // Generic string manipulation functions
-  std::vector<std::string> Split(const std::string &s, char delim); // NOLINT(*)
+  std::vector<std::string> Split(const std::string s, char delim); // NOLINT(*)
+  std::vector<std::string> Split(const std::string s, std::string delim); // NOLINT(*)
   std::string Strip(const std::string &s); // NOLINT(*)
   std::string Join(std::vector<std::string> v, std::string delim);
   int Index(std::string vid, std::vector<std::string> vmap); // NOLINT(*)
