@@ -162,13 +162,8 @@ void CodeGenPoCC::VisitStmt_(const For* op) {
       extent.erase(std::remove(extent.begin(), extent.end(), to_remove_), extent.end());
   }
 
-  std::cout << "Extent is: " << extent << "\n";
   std::vector<std::string> tokens;
   tokens = this->Split(extent, "+-");
-
-  for (auto token: tokens) {
-      std::cout << "Token from For*: " << token << "\n";
-  }
 
   /* Updating UB map */
   for (auto token: tokens) {
@@ -313,6 +308,9 @@ std::string CodeGenPoCC::GetBufferRef(Type t, const Variable* buffer, Expr index
         buf_length_map_[buffer] == 1);
     if (is_scalar) {
       os << vid;
+      read_write_coeff.insert({});
+      this->UpdateReadWriteAccessCoefficient(vid);
+      read_write_coeff.clear();
     } else {
 
       PrintExpr(index, expr);
@@ -346,19 +344,21 @@ std::string CodeGenPoCC::GetBufferRef(Type t, const Variable* buffer, Expr index
           }
           // Matching constants
           if(this->IsNumeric(token)) {
-              this->UpdateReadWriteAccessCoefficient(vid, "_CONSTANT_", sign + token);
+              this->UpdateReadWriteAccessCoefficient("_CONSTANT_", sign + token);
               continue;
           }
           // Matching iterators and parameters
           bool found = token.find("*") != std::string::npos;
           // No coefficient for the iterator or the Parameter. Store with default coefficient 1
           if (!found) {
-              this->UpdateReadWriteAccessCoefficient(vid, token, sign + "1");
+              this->UpdateReadWriteAccessCoefficient(token, sign + "1");
           } else {
               std::vector<std::string> token_ = this->Split(token, '*');
-              this->UpdateReadWriteAccessCoefficient(vid, token_[0], sign + token_[1]);
+              this->UpdateReadWriteAccessCoefficient(token_[0], sign + token_[1]);
           }
       }
+      this->UpdateReadWriteAccessCoefficient(vid);
+      read_write_coeff.clear();
     }
   }
   return os.str();

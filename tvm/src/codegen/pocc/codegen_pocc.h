@@ -95,7 +95,8 @@ class CodeGenPoCC final : public CodeGenC {
 
   // To keep track of array access index coefficientis per read/write array
   // For scalar, it is treated as a vector of length 1
-  void UpdateReadWriteAccessCoefficient(std::string vid, std::string s, std::string coeff); // NOLINT(*)
+  void UpdateReadWriteAccessCoefficient(std::string vid); // NOLINT(*)
+  void UpdateReadWriteAccessCoefficient(std::string s, std::string coeff); // NOLINT(*)
 
   // To tackle any parameters.
   void InsertParams(std::string); // NOLINT(*)
@@ -142,7 +143,8 @@ class CodeGenPoCC final : public CodeGenC {
    * read/write access temporarily. The format is the following:
    * <Read/Write_Variable_Name, <Parameter/Iterator/Constant_Name, Parameter_Coefficicent>>. 
    * Reused across different read/write access.*/
-  std::unordered_map<std::string, std::unordered_map<std::string, std::string>> read_write_coeff_map;
+  std::unordered_multimap<std::string, std::unordered_map<std::string, std::string>> read_write_coeff_map;
+  std::unordered_map<std::string, std::string> read_write_coeff;
   /*! \brief A reusable string vector to store read/write variable per statement.*/
   std::vector<std::string> read_write_variable;
   /*! \brief To store the (vid, lower bound) and (vid, upper bound) for each of the iterators

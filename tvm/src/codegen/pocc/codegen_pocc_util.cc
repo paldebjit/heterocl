@@ -155,13 +155,30 @@ std::string CodeGenPoCC::Strip(const std::string &s) {
 }
 
 std::string CodeGenPoCC::Join(std::vector<std::string> v, std::string delim) {
+    std::string delimo{delim};
     std::string s{""};
     for (size_t i = 0; i < v.size(); i++) {
-        if (i == v.size() - 1) {
-            s = s + v[i];
-        } else {
-            s = s + v[i] + delim;
+        // Get the next element
+        std::string curr = v[i];
+        // If delim == " + " and next[0] == '-', then change the delim == " - "
+        if (i < v.size() - 1) {
+            std::string next = v[i + 1];
+            if (next[0] == '-' && delim == " + ") {
+                delim = " - ";
+            }
         }
+        // Check the current string for -Ve coefficient
+        if (curr[0] == '-') {
+            curr = curr.substr(1);
+        }
+        // Finally concatenate based on modified delimiter and the modified current string
+        if (i == v.size() - 1) {
+            s = s + curr;
+        } else {
+            s = s + curr + delim;
+        }
+        // Ensure original delim is restored
+        delim = delimo;
     }
     return s;
 }
@@ -229,7 +246,8 @@ std::string CodeGenPoCC::ConstructReadWriteAccessMatrix() {
     std::string matrix{""};
     // vid | iterators | parameters | constant
     int no_of_cols = 1 + curr_iterators.size() + this->GetParams() + 1;
-    int no_of_rows = read_write_variable.size();
+    //int no_of_rows = read_write_variable.size();
+    int no_of_rows = read_write_coeff_map.size();
 
     matrix +=  std::to_string(no_of_rows) + " " + std::to_string(no_of_cols) + "\n";
     
@@ -237,58 +255,63 @@ std::string CodeGenPoCC::ConstructReadWriteAccessMatrix() {
     
     int row{0};
     for (auto rw_var: read_write_variable) {
-        std::vector<std::string> row1(no_of_cols + 1, "0");
-        std::string rw_expr{"## " + rw_var + "["};
-
-        row1[0] = std::to_string(this->Index(rw_var, read_write_variable)); 
-        std::unordered_map<std::string, std::string> coeff_map;
         auto found = read_write_coeff_map.find(rw_var);
-        // Checking if Read/Write access is a scalar access or array element access
-        if(found != read_write_coeff_map.end()){
-           coeff_map = found->second;
-        } else {
-            rw_expr = rw_expr + "0]";
-            row1[no_of_cols] = rw_expr;
-            matrix_[row] = row1;
-            row++;
-            continue;
-        }
-        // FIXME: Tackle dimension here [i][j][k]. Do I need to do? HeteroCL seems to be flattening
-        //        everythign.
-        //        As of now only a * i + b * j can work
-        std::vector<std::string> v;
-
-        // Tackling iterators
-        for (size_t i = 0; i < curr_iterators.size(); i++) {
-            auto found = coeff_map.find(curr_iterators[i]);
-            if (found != coeff_map.end()) {
-                row1[i + 1] = found->second;
-                v.push_back(found->second + "*" + curr_iterators[i]);
+        if(found != read_write_coeff_map.end()) {
+            size_t count = read_write_coeff_map.count(rw_var);
+    
+            for (size_t i = 0; i < count; i++) {
+                std::vector<std::string> row1(no_of_cols + 1, "0");
+                std::string rw_expr{"## " + rw_var + "["};
+    
+                row1[0] = std::to_string(this->Index(rw_var, read_write_variable)); 
+    
+                auto found = read_write_coeff_map.find(rw_var);
+                std::unordered_map<std::string, std::string> coeff_map;
+                // Checking if Read/Write access is a scalar access or array element access
+                coeff_map = found->second;
+                read_write_coeff_map.erase(found);
+                if (coeff_map.empty()) {
+                    rw_expr = rw_expr + "0]";
+                    row1[no_of_cols] = rw_expr;
+                    matrix_[row] = row1;
+                    row++;
+                    continue;
+                }
+                // FIXME: Tackle dimension here [i][j][k]. i
+                //        Do I need to do? HeteroCL seems to be flattening everything.
+                //        As of now only a * i + b * j can work
+                std::vector<std::string> v;
+                // Tackling iterators
+                for (size_t i = 0; i < curr_iterators.size(); i++) {
+                    auto found = coeff_map.find(curr_iterators[i]);
+                    if (found != coeff_map.end()) {
+                        row1[i + 1] = found->second;
+                        v.push_back(found->second + "*" + curr_iterators[i]);
+                    }
+                }
+                // Tackling parameters
+                for (size_t i = 0; i < parameters.size(); i++) {
+                    auto found = coeff_map.find(parameters[i]);
+                    if (found != coeff_map.end()) {
+                        row1[i + curr_iterators.size() + 1] = found->second;
+                        v.push_back(found->second + "*" + curr_iterators[i]);
+                    }
+                }
+                // Tackling constants
+                auto foundc = coeff_map.find("_CONSTANT_");
+                if (foundc != coeff_map.end()) {
+                    row1[no_of_cols - 1] = foundc->second;
+                    v.push_back(foundc->second);
+                }
+                
+                rw_expr = rw_expr + this->Join(v, " + ") + "]";
+                v.clear();
+    
+                row1[no_of_cols] = rw_expr;
+                matrix_[row] = row1;
+                row++;
             }
         }
-        
-        // Tackling parameters
-        for (size_t i = 0; i < parameters.size(); i++) {
-            auto found = coeff_map.find(parameters[i]);
-            if (found != coeff_map.end()) {
-                row1[i + curr_iterators.size() + 1] = found->second;
-                v.push_back(found->second + "*" + curr_iterators[i]);
-            }
-        }
-
-        // Tackling constants
-        auto foundc = coeff_map.find("_CONSTANT_");
-        if (foundc != coeff_map.end()) {
-            row1[no_of_cols - 1] = foundc->second;
-            v.push_back(foundc->second);
-        } 
-
-        rw_expr = rw_expr + this->Join(v, " + ") + "]";
-        v.clear();
-
-        row1[no_of_cols] = rw_expr;
-        matrix_[row] = row1;
-        row++;
     }
 
     matrix += this->WriteMatrix(matrix_);
@@ -358,7 +381,8 @@ std::string CodeGenPoCC::ConstructIterDomMatrix() {
         row++;
 
         /* Tackling the upper bound */
-        std::string ub_expr{"## -" + iterator + " + "};
+        std::string ub_expr{"## -" + iterator};
+        v.push_back(ub_expr);
         std::vector<std::string> row2(no_of_cols + 1, "0");
         row2[0] = "1";
 
@@ -387,8 +411,9 @@ std::string CodeGenPoCC::ConstructIterDomMatrix() {
             row2[no_of_cols - 1] = foundcub->second;
             v.push_back(foundcub->second);
         }
-
-        ub_expr = ub_expr + this->Join(v, " + ") + " >= 0";
+        
+        std::string s = this->Join(v, " + ");
+        ub_expr = s + " >= 0";
         v.clear();
 
         row2[no_of_cols] = ub_expr;
@@ -490,14 +515,19 @@ void CodeGenPoCC::UpdateIterCoefficient(std::string s, std::string coeff) {
     min_extent_coeff_map.insert({s, coeff});
 }
 
-void CodeGenPoCC::UpdateReadWriteAccessCoefficient(std::string vid, std::string s, std::string coeff) {
-    auto found = read_write_coeff_map.find(vid);
-    if (found != read_write_coeff_map.end()) {
-        read_write_coeff_map[vid].insert({s, coeff});
-    } else {
-        std::unordered_map<std::string, std::string> s_coeff = {{s, coeff}};
-        read_write_coeff_map.insert({vid, s_coeff});
+void CodeGenPoCC::UpdateReadWriteAccessCoefficient(std::string vid) {
+    read_write_coeff_map.insert({vid, read_write_coeff});
+}
+
+void CodeGenPoCC::UpdateReadWriteAccessCoefficient(std::string s, std::string coeff) {
+    auto found = read_write_coeff.find(s);
+    if (found != read_write_coeff.end()) {
+        std::string coeff_ = found->second;
+        read_write_coeff.erase(found);
+        int modified_coeff = std::stoi(coeff) + std::stoi(coeff_);
+        coeff = std::to_string(modified_coeff);
     }
+    read_write_coeff.insert({s, coeff});
 }
 
 bool CodeGenPoCC::IsNumeric(std::string &s) {
