@@ -318,30 +318,91 @@ std::string CodeGenPoCC::ConstructIterDomMatrix() {
     std::vector<std::vector<std::string>> matrix_(no_of_rows, std::vector<std::string>(no_of_cols + 1, "0"));
     
     std::vector<iter_bounds> iterators_ = this->GetIterBounds();
-    
+    /* <VID      <SYMBOL_NAME     SYMBOL_COEFFICIENT>> */
     int row{0};
     for (size_t i = 0; i < iterators_.size(); i++) {
 
+        std::vector<std::string> v;
+
         std::string iterator = std::get<0>(iterators_[i].LB);
-        std::string lb = std::get<1>(iterators_[i].LB);
+        std::unordered_map<std::string, std::string> lb = std::get<1>(iterators_[i].LB);
+        std::unordered_map<std::string, std::string> ub = std::get<1>(iterators_[i].UB);
         
-        std::string ub = std::get<1>(iterators_[i].UB);
-        
+        /* Tackling the lower bound */
+        std::string lb_expr{"## " + iterator + " >= "} ;
         std::vector<std::string> row1(no_of_cols + 1, "0");
         row1[0] = "1";
 
         row1[i + 1] = "1";
-        row1[no_of_cols - 1] = lb;
-        row1[no_of_cols] = "## " + iterator + " >= " + lb;
+        
+        // Tackling outermost iterators
+        for (size_t j = 0; j < curr_iterators.size(); j++) {
+            auto foundilb = lb.find(curr_iterators[j]);
+            if (foundilb != lb.end()) {
+                row1[j + 1] = foundilb->second;
+                v.push_back(foundilb->second + "*" + curr_iterators[j]);
+            }
+        }
+        
+        // Tackling parameters
+        for (size_t j = 0; j < parameters.size(); j++) {
+            auto foundplb = lb.find(parameters[j]);
+            if (foundplb != lb.end()) {
+                row1[j + curr_iterators.size() + 1] = foundplb->second;
+                v.push_back(foundplb->second + "*" + parameters[j]);
+            }
+        }
+
+        // Tackling constants
+        auto foundclb = lb.find("_CONSTANT_");
+        if (foundclb != lb.end()) {
+            row1[no_of_cols - 1] = foundclb->second;
+            v.push_back(foundclb->second);
+            //lb_expr = lb_expr + "+" + foundclb->second;
+        }
+
+        lb_expr = lb_expr + this->Join(v, " + ");
+        v.clear();
+
+        row1[no_of_cols] = lb_expr;
         matrix_[row] = row1;
         row++;
 
+        /* Tackling the upper bound */
+        std::string ub_expr{"## -" + iterator + " + "};
         std::vector<std::string> row2(no_of_cols + 1, "0");
         row2[0] = "1";
 
         row2[i + 1] = "-1";
-        row2[no_of_cols - 1] = ub;
-        row2[no_of_cols] = "## -" + iterator + " + " + ub + " >= 0";
+        // Tackling outermost iterators
+        for (size_t j = 0; j < curr_iterators.size(); j++) {
+            auto foundiub = ub.find(curr_iterators[j]);
+            if (foundiub != ub.end()) {
+                row2[j + 1] = foundiub->second;
+                v.push_back(foundiub->second + "*" + curr_iterators[j]);
+            }
+        }
+        
+        // Tackling parameters
+        for (size_t j = 0; j < parameters.size(); j++) {
+            auto foundpub = ub.find(parameters[j]);
+            if (foundpub != ub.end()) {
+                row2[j + curr_iterators.size() + 1] = foundpub->second;
+                v.push_back(foundpub->second + "*" + parameters[j]);
+            }
+        }
+
+        // Tackling constants
+        auto foundcub = ub.find("_CONSTANT_");
+        if (foundcub != ub.end()) {
+            row2[no_of_cols - 1] = foundcub->second;
+            v.push_back(foundcub->second);
+        }
+
+        ub_expr = ub_expr + this->Join(v, " + ") + " >= 0";
+        v.clear();
+
+        row2[no_of_cols] = ub_expr;
         matrix_[row] = row2;
         row++;
     }
@@ -551,21 +612,22 @@ void CodeGenPoCC::VisitStmt_(const LetStmt* op) {
 }
 
 
-void UpdateIterCoefficient(std::string vid, std::string s, std::string coeff) {
-    auto found = iterator_coeff_dict.find(vid);
-    if (found != iterator_coeff_dict.end()) {
-        iterator_coeff_dict[vid].insert({iterator, coeff});
-    } else {
-        std::unordered_map<std::string, std::string> iter_coeff = {{iterator, coeff}};
-        iterator_coeff_dict.insert({vid, iter_coeff});
-    }
+void CodeGenPoCC::UpdateIterCoefficient(std::string s, std::string coeff) {
+    min_extent_map.insert({s, coeff});
 }
 
 void CodeGenPoCC::VisitStmt_(const For* op) {
   // FIXME: extent j = 18 + 2 * i + N
+  
+  iter_bounds ib;
+
   std::string extent = PrintExpr(op->extent);
   std::string min = PrintExpr(op->min);
   std::string vid = AllocVarID(op->loop_var.get());
+
+  min_extent_map.insert({"_CONSTANT_", min});
+  ib.LB = make_tuple(vid, min_extent_map);
+  min_extent_map.clear();
 
   char to_remove[] = "()";
   
@@ -580,7 +642,8 @@ void CodeGenPoCC::VisitStmt_(const For* op) {
   for (auto token: tokens) {
       std::cout << "Token from For*: " << token << "\n";
   }
-  
+
+  /* Updating UB map */
   for (auto token: tokens) {
       // Checking for - sign at the begining
       std::string sign{""};
@@ -590,32 +653,22 @@ void CodeGenPoCC::VisitStmt_(const For* op) {
       }
       // Matching constants
       if(this->IsNumeric(token)) {
-          this->UpdateConstantCoeff(vid, sign + token);
+          this->UpdateIterCoefficient("_CONSTANT_", sign + token);
           continue;
       }
       // Matching iterators and parameters
       bool found = token.find("*") != std::string::npos;
+      // No coefficient for the iterator or the Parameter. Store with default Coefficient 1
       if (!found) {
-          bool found_ = std::find(curr_iterators.begin(), curr_iterators.end(), token) != curr_iterators.end();
-          if(!found_) {
-              this->UpdateParamCoeff(vid, token, sign + "1");
-          } else {
-              this->UpdateIterCoeff(vid, token, sign + "1");
-          }
+          this->UpdateIterCoefficient(token, sign + "1");
       } else {
           std::vector<std::string> token_ = this->Split(token, '*');
-          bool found_ = std::find(curr_iterators.begin(), curr_iterators.end(), token_[0]) != curr_iterators.end();
-          if(!found_) {
-              this->UpdateParamCoeff(vid, token_[0], sign + token_[1]);
-          } else {
-              this->UpdateIterCoeff(vid, token_[0], sign + token_[1]);
-          }
+          this->UpdateIterCoefficient(token_[0], sign + token_[1]);
       }
   }
 
-  iter_bounds ib;
-  ib.LB = make_tuple(vid, min);
-  ib.UB = make_tuple(vid, extent);
+  ib.UB = make_tuple(vid, min_extent_map);
+  min_extent_map.clear();
 
   int for_scope = BeginScope();
 

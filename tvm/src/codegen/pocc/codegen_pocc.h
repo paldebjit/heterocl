@@ -22,8 +22,15 @@ namespace TVM {
 namespace codegen {
 
 struct iter_bounds {
-    std::tuple<std::string, std::string> LB;
-    std::tuple<std::string, std::string> UB;
+    // MAJOR CHANGE
+    /* The arrangement is the following
+     * <VID      <SYMBOL_NAME     SYMBOL_COEFFICIENT>>
+     * VID \in {iterator_name}
+     * SYMBOL_NAME \in {_CONSTANT_, parameter_name, iterator_name (outer)}
+     * SYMBOL_COEFFICIENT \in [+|-]?[0-9]+ 
+     */
+    std::tuple<std::string, std::unordered_map<std::string, std::string>> LB;
+    std::tuple<std::string, std::unordered_map<std::string, std::string>> UB;
 };
 
 class CodeGenPoCC final : public CodeGenC {
@@ -84,7 +91,7 @@ class CodeGenPoCC final : public CodeGenC {
   // per loop nest (scope wise)
   void PushIterBounds(iter_bounds ib);  // NOLINT(*)
   void PopIterBounds(); // NOLINT(*)
-  void UpdateIterCoefficient(std::string vid, std::string s, std::string coeff); // NOLINT(*)
+  void UpdateIterCoefficient(std::string s, std::string coeff); // NOLINT(*)
   int SizeIterBounds(); // NOLINT(*)
   std::vector<iter_bounds> GetIterBounds(); // NOLINT(*)
 
@@ -160,6 +167,8 @@ class CodeGenPoCC final : public CodeGenC {
   /*! \brief Storing the schedule per statement in 2d + 1 format where `d' is the 
    * loop nest depth of a given statement.*/ 
   std::unordered_map<std::string, int> schedule;
+
+  std::unordered_map<std::string, std::string> min_extent_map;
     
   /*! \brief Total number of statements found in the IR for which SCoP has been written.*/
   int no_of_stmt{0};
