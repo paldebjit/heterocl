@@ -99,11 +99,6 @@ std::vector<iter_bounds> CodeGenPoCC::GetIterBounds() {
     return iterators;
 }
 
-int CodeGenPoCC::SizeIterCoeff() {
-    return iterator_coeff_dict.size();
-}
-
-
 int CodeGenPoCC::Index(std::string vid, std::vector<std::string> vmap) {
     int index{-1};
     auto it = std::find(vmap.begin(), vmap.end(), vid);
@@ -263,10 +258,11 @@ std::string CodeGenPoCC::ConstructReadWriteAccessMatrix() {
         std::string rw_expr{"## " + rw_var + "["};
 
         row1[0] = std::to_string(this->Index(rw_var, read_write_variable)); 
-        std::unordered_map<std::string, std::string> iterator_coeff_dict_;
-        auto found = iterator_coeff_dict.find(rw_var);
-        if(found != iterator_coeff_dict.end()){
-            iterator_coeff_dict_ = found->second;
+        std::unordered_map<std::string, std::string> coeff_map;
+        auto found = read_write_coeff_map.find(rw_var);
+        // Checking if Read/Write access is a scalar access or array element access
+        if(found != read_write_coeff_map.end()){
+           coeff_map = found->second;
         } else {
             rw_expr = rw_expr + "0]";
             row1[no_of_cols] = rw_expr;
@@ -278,24 +274,39 @@ std::string CodeGenPoCC::ConstructReadWriteAccessMatrix() {
         //        everythign.
         //        As of now only a * i + b * j can work
         std::vector<std::string> v;
+
+        // Tackling iterators
         for (size_t i = 0; i < curr_iterators.size(); i++) {
-            auto found = iterator_coeff_dict_.find(curr_iterators[i]);
-            if (found != iterator_coeff_dict_.end()) {
+            auto found = coeff_map.find(curr_iterators[i]);
+            if (found != coeff_map.end()) {
                 row1[i + 1] = found->second;
                 v.push_back(found->second + "*" + curr_iterators[i]);
             }
         }
-        rw_expr = rw_expr + this->Join(v, "+");
-        v.clear();
-        // NOTE: Now adding the constants
-        auto foundc = constant_coeff_dict.find(rw_var);
-        if (foundc != constant_coeff_dict.end()) {
-            std::string constant = foundc->second;
-            row1[no_of_cols - 1] = constant;
-            rw_expr = rw_expr + "+" + constant + "]";
-        } else {
-            rw_expr = rw_expr + "]";
+        
+        // Tackling parameters
+        for (size_t i = 0; i < parameters.size(); i++) {
+            auto found = coeff_map.find(parameters[i]);
+            if (found != coeff_map.end()) {
+                row1[i + curr_iterators.size() + 1] = found->second;
+                v.push_back(found->second + "*" + curr_iterators[i]);
+            }
         }
+
+        // Tackling constants
+        auto foundc = coeff_map.find("_CONSTANT_");
+        if (foundc != coeff_map.end()) {
+            row1[no_of_cols - 1] = foundc->second;
+            v.push_back(foundc->second);
+            //rw_expr = rw_expr + "+" + constant + "]";
+        } 
+        //else {
+        //    rw_expr = rw_expr + "]";
+        //}
+
+        rw_expr = rw_expr + this->Join(v, " + ") + "]";
+        v.clear();
+
         row1[no_of_cols] = rw_expr;
         matrix_[row] = row1;
         row++;
@@ -613,7 +624,7 @@ void CodeGenPoCC::VisitStmt_(const LetStmt* op) {
 
 
 void CodeGenPoCC::UpdateIterCoefficient(std::string s, std::string coeff) {
-    min_extent_map.insert({s, coeff});
+    min_extent_coeff_map.insert({s, coeff});
 }
 
 void CodeGenPoCC::VisitStmt_(const For* op) {
@@ -625,9 +636,9 @@ void CodeGenPoCC::VisitStmt_(const For* op) {
   std::string min = PrintExpr(op->min);
   std::string vid = AllocVarID(op->loop_var.get());
 
-  min_extent_map.insert({"_CONSTANT_", min});
-  ib.LB = make_tuple(vid, min_extent_map);
-  min_extent_map.clear();
+  min_extent_coeff_map.insert({"_CONSTANT_", min});
+  ib.LB = make_tuple(vid, min_extent_coeff_map);
+  min_extent_coeff_map.clear();
 
   char to_remove[] = "()";
   
@@ -667,8 +678,8 @@ void CodeGenPoCC::VisitStmt_(const For* op) {
       }
   }
 
-  ib.UB = make_tuple(vid, min_extent_map);
-  min_extent_map.clear();
+  ib.UB = make_tuple(vid, min_extent_coeff_map);
+  min_extent_coeff_map.clear();
 
   int for_scope = BeginScope();
 
@@ -734,16 +745,14 @@ void CodeGenPoCC::VisitStmt_(const Store* op) {
     /* The step is needed to ensure that the coefficients from the read
      * access are cleared */
     read_write_variable.clear();
-    iterator_coeff_dict.clear();
-    constant_coeff_dict.clear();
+    read_write_coeff_map.clear();
 
     std::string ref = this->GetBufferRef(t, op->buffer_var.get(), op->index);
     write_access_matrix = this->ConstructReadWriteAccessMatrix();
     /* This step is needed to ensure that the coefficients from the write
      * access are cleared */
     read_write_variable.clear();
-    iterator_coeff_dict.clear();
-    constant_coeff_dict.clear();
+    read_write_coeff_map.clear();
 
     scattering_matrix = this->ConstructScatteringMatrix();
 
@@ -813,30 +822,27 @@ std::string CodeGenPoCC::GetBufferRef(Type t, const Variable* buffer, Expr index
       // NOTE:  Implemented above. Need to check.
       // FIXME: How to tackle stencil kind of array?
       std::vector<std::string> tokens;
-      tokens = this->Split(expr_, '+');
+      tokens = this->Split(expr_, "+-");
       for (auto token: tokens) {
+          // Checking for - sign at the beginning
+          std::string sign{""};
+          if(token[0] == '-') {
+              token = token.substr(1);
+              sign = "-";
+          }
           // Matching constants
           if(this->IsNumeric(token)) {
-              this->UpdateConstantCoeff(vid, token);
+              this->UpdateReadWriteAccessCoefficient(vid, "_CONSTANT_", sign + token);
               continue;
           }
           // Matching iterators and parameters
           bool found = token.find("*") != std::string::npos;
+          // No coefficient for the iterator or the Parameter. Store with default coefficient 1
           if (!found) {
-              bool found_ = std::find(curr_iterators.begin(), curr_iterators.end(), token) != curr_iterators.end();
-              if(!found_) {
-                  this->UpdateParamCoeff(vid, token, "1");
-              } else {
-                  this->UpdateIterCoeff(vid, token, "1");
-              }
+              this->UpdateReadWriteAccessCoefficient(vid, token, sign + "1");
           } else {
               std::vector<std::string> token_ = this->Split(token, '*');
-              bool found_ = std::find(curr_iterators.begin(), curr_iterators.end(), token_[0]) != curr_iterators.end();
-              if(!found_) {
-                  this->UpdateParamCoeff(vid, token_[0], token_[1]);
-              } else {
-                  this->UpdateIterCoeff(vid, token_[0], token_[1]);
-              }
+              this->UpdateReadWriteAccessCoefficient(vid, token_[0], sign + token_[1]);
           }
       }
     }
@@ -844,36 +850,19 @@ std::string CodeGenPoCC::GetBufferRef(Type t, const Variable* buffer, Expr index
   return os.str();
 }
 
+void CodeGenPoCC::UpdateReadWriteAccessCoefficient(std::string vid, std::string s, std::string coeff) {
+    auto found = read_write_coeff_map.find(vid);
+    if (found != read_write_coeff_map.end()) {
+        read_write_coeff_map[vid].insert({s, coeff});
+    } else {
+        std::unordered_map<std::string, std::string> s_coeff = {{s, coeff}};
+        read_write_coeff_map.insert({vid, s_coeff});
+    }
+}
+
 bool CodeGenPoCC::IsNumeric(std::string &s) {
     return !s.empty() && std::find_if(s.begin(),
             s.end(), [](unsigned char c) { return !std::isdigit(c); }) == s.end();
-}
-
-void CodeGenPoCC::UpdateIterCoeff(std::string vid, std::string iterator, std::string coeff) {
-    auto found = iterator_coeff_dict.find(vid);
-    if (found != iterator_coeff_dict.end()) {
-        iterator_coeff_dict[vid].insert({iterator, coeff});
-    } else {
-        std::unordered_map<std::string, std::string> iter_coeff = {{iterator, coeff}};
-        iterator_coeff_dict.insert({vid, iter_coeff});
-    }
-}
-
-void CodeGenPoCC::UpdateParamCoeff(std::string vid, std::string parameter, std::string coeff) {
-    auto found = parameter_coeff_dict.find(vid);
-    if (found != parameter_coeff_dict.end()) {
-        parameter_coeff_dict[vid].insert({parameter, coeff});
-    } else {
-        std::unordered_map<std::string, std::string> param_coeff = {{parameter, coeff}};
-        parameter_coeff_dict.insert({vid, param_coeff});
-    }
-}
-
-// NOTE:Every index fo ran array access can possibly have at most one constant
-//      However, in unlikely case there are multiple constants, we can augment 
-//      this function to handle that.
-void CodeGenPoCC::UpdateConstantCoeff(std::string vid, std::string constant) {
-    constant_coeff_dict.insert({vid, constant});
 }
 
 void CodeGenPoCC::VisitStmt_(const IfThenElse* op) {

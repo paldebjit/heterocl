@@ -22,7 +22,6 @@ namespace TVM {
 namespace codegen {
 
 struct iter_bounds {
-    // MAJOR CHANGE
     /* The arrangement is the following
      * <VID      <SYMBOL_NAME     SYMBOL_COEFFICIENT>>
      * VID \in {iterator_name}
@@ -45,12 +44,11 @@ class CodeGenPoCC final : public CodeGenC {
   void PrintStorageScope(const std::string& scope, std::ostream& os) final; // NOLINT(*)
   void PrintStorageSync(const Call* op) final;  // NOLINT(*)
   void PrintType(Type t, std::ostream& os) final; // NOLINT(*)
-  void PrintVecStore(const Variable* buffer,
-                     Type t, Expr base,
-                     const std::string& value) final;  // NOLINT(*)
+  void PrintVecStore(const Variable* buffer, Type t, Expr base, const std::string& value) final;  // NOLINT(*)
+
   // the address of load/store
-  void PrintVecAddr(const Variable* buffer, Type t,
-                    Expr base, std::ostream& os);  // NOLINT(*)
+  void PrintVecAddr(const Variable* buffer, Type t,  Expr base, std::ostream& os);  // NOLINT(*)
+
   // overload visitor for Expression
   void VisitExpr_(const Broadcast* op, std::ostream& os) final; // NOLINT(*)
   void VisitExpr_(const Load* op, std::ostream& os) final; // NOLINT(*)
@@ -97,10 +95,7 @@ class CodeGenPoCC final : public CodeGenC {
 
   // To keep track of array access index coefficientis per read/write array
   // For scalar, it is treated as a vector of length 1
-  void UpdateIterCoeff(std::string vid, std::string iterator, std::string coeff); // NOLINT(*)
-  void UpdateParamCoeff(std::string vid, std::string parameter, std::string coeff); // NOLINT(*)
-  void UpdateConstantCoeff(std::string vid, std::string constant); // NOLINT(*)
-  int SizeIterCoeff(); // NOLINT(*)
+  void UpdateReadWriteAccessCoefficient(std::string vid, std::string s, std::string coeff); // NOLINT(*)
 
   // To tackle any parameters.
   void InsertParams(std::string); // NOLINT(*)
@@ -113,10 +108,9 @@ class CodeGenPoCC final : public CodeGenC {
   std::string ConstructIterDomMatrix(); // NOLINT(*)
   std::string ConstructReadWriteAccessMatrix(); // NOLINT(*)
   std::string ConstructScatteringMatrix(); // NOLINT(*)
-
   std::string WriteMatrix(std::vector<std::vector<std::string>> matrix_);
 
-  // Function to construct the SCoP on-the-fly
+  // Function to construct and write the SCoP
   void ConstructSCoP(std::string statement); // NOLINT(*)
   void WriteSCoP(); // NOLINT(*)
 
@@ -141,22 +135,14 @@ class CodeGenPoCC final : public CodeGenC {
   /*! \brief Variable to store user-defined parameters whose value is NOT known at 
    * compile time.*/
   std::vector<std::string> parameters;
-  /*! \brief To store the iterator coefficicents in the indices of a variable per 
-   * read/write access temporarily. The format is the following:
-   * <Read/Write_Variable_Name, <Iterator_Name, Iterator_Coefficicent>>. Reused across
-   * different read/write access.*/
 
   // FIXME: How can I tackle multiple dimesnion of the array in this same structure?
-  std::unordered_map<std::string, std::unordered_map<std::string, std::string>> iterator_coeff_dict;
+
   /*! \brief To store the parameter coefficicents in the indices of a variable per 
    * read/write access temporarily. The format is the following:
-   * <Read/Write_Variable_Name, <Parameter_Name, Parameter_Coefficicent>>. Reused across
-   * different read/write access.*/
-  std::unordered_map<std::string, std::unordered_map<std::string, std::string>> parameter_coeff_dict;
-  /*! \brief To store the constant in the indices of a variable per 
-   * read/write access temporarily. The format is the following:
-   * <Read/Write_Variable_Name, Constant>. Reused across different read/write access.*/
-  std::unordered_map<std::string, std::string> constant_coeff_dict;
+   * <Read/Write_Variable_Name, <Parameter/Iterator/Constant_Name, Parameter_Coefficicent>>. 
+   * Reused across different read/write access.*/
+  std::unordered_map<std::string, std::unordered_map<std::string, std::string>> read_write_coeff_map;
   /*! \brief A reusable string vector to store read/write variable per statement.*/
   std::vector<std::string> read_write_variable;
   /*! \brief To store the (vid, lower bound) and (vid, upper bound) for each of the iterators
@@ -167,8 +153,11 @@ class CodeGenPoCC final : public CodeGenC {
   /*! \brief Storing the schedule per statement in 2d + 1 format where `d' is the 
    * loop nest depth of a given statement.*/ 
   std::unordered_map<std::string, int> schedule;
-
-  std::unordered_map<std::string, std::string> min_extent_map;
+  /*! \brief To store the iterator/parameter/constant coefficients in the extent
+   * per iterator temporarily. The format is the following:
+   * <Parameter/Iterator/Constant_Name, Parameter_Coefficicent>.
+   * Reused across different read/write access.*/
+  std::unordered_map<std::string, std::string> min_extent_coeff_map;
     
   /*! \brief Total number of statements found in the IR for which SCoP has been written.*/
   int no_of_stmt{0};
