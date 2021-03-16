@@ -263,7 +263,7 @@ std::string CodeGenPoCC::ConstructReadWriteAccessMatrix() {
                 std::vector<std::string> row1(no_of_cols + 1, "0");
                 std::string rw_expr{"## " + rw_var + "["};
     
-                row1[0] = std::to_string(this->Index(rw_var, read_write_variable)); 
+                row1[0] = std::to_string(this->Index(rw_var, vid_map)); 
     
                 auto found = read_write_coeff_map.find(rw_var);
                 std::unordered_map<std::string, std::string> coeff_map;
