@@ -15,5 +15,13 @@ namespace TVM {
 namespace codegen {
 
 
+/* Important PoCC commands that will be used for the verification approach
+ * Assume PoCC is available in the path. Check for it first
+ * Step 1: Generate the SCoP. Check if the SCoP exists
+ * Step 2: Check schedule violation and capture the PoCC output in a log file
+ *          $ pocc --read-scop kernel.scop --check-schedule --verbose
+ * Step 3: 
+ * /
+
 }  // namespace codegen
 }  // namespace TVM
