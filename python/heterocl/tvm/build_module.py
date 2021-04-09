@@ -422,6 +422,8 @@ def build_fpga_kernel(sch, args, target, name="default_function", schedule_name=
     # generate host (device) code / function
     if target == "merlinc":
         BuildConfig.current = build_config(generate_reuse_buffer=False)
+    elif target == "scop":
+        BuildConfig.current = build_config(generate_reuse_buffer=False)
     else:
         BuildConfig.current = build_config()
 

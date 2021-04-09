@@ -21,6 +21,7 @@
 #include "hlsc/codegen_ihls.h"
 #include "hlsc/codegen_vhls.h"
 #include "merlinc/codeanalys_merlinc.h"
+#include "scop/codeanalys_scop.h"
 #include "opencl/codegen_aocl.h"
 #include "opencl/codegen_aocl_host.h"
 #include "opencl/codegen_xocl.h"

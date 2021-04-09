@@ -21,6 +21,7 @@
 #include "./build_common.h"
 #include "hlsc/codegen_vhls.h"
 #include "merlinc/codeanalys_merlinc.h"
+#include "scop/codeanalys_scop.h"
 #include "opencl/codegen_aocl.h"
 #include "ppac/codegen_rv64_ppac.h"
 
