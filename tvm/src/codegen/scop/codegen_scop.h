@@ -8,6 +8,11 @@
 
 #include <tvm/codegen.h>
 #include <tvm/packed_func_ext.h>
+#include <iostream>
+#include <cstdio>
+#include <array>
+#include <memory>
+#include <fstream>
 #include <string>
 #include <queue>
 #include <tuple>
@@ -15,6 +20,11 @@
 #include <iomanip>
 #include <regex>
 #include <iterator>
+#include <stdlib.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include "./codeanalys_scop.h"
 #include "../codegen_c.h"
 
@@ -113,7 +123,7 @@ class CodeGenSCoP final : public CodeGenC {
 
   // Function to construct and write the SCoP
   void ConstructSCoP(std::string statement); // NOLINT(*)
-  void WriteSCoP(); // NOLINT(*)
+  void AssembleSCoP(); // NOLINT(*)
 
   // Generic string manipulation functions
   std::vector<std::string> Split(const std::string s, char delim); // NOLINT(*)
@@ -123,12 +133,24 @@ class CodeGenSCoP final : public CodeGenC {
   int Index(std::string vid, std::vector<std::string> vmap); // NOLINT(*)
   bool IsNumeric(std::string &s); // NOLINT(*)
 
+  // Functions for 2-step verification and PLuTO-based optimization
+  std::string ExecCmd(const char* cmd); // NOLINT(*)
+  void Verify(); // NOLINT(*)
+  void CheckEnv(); // NOLINT(*)
+  void WriteSCoP(); // NOLINT(*)
+  void VerifySchedule(); // NOLINT(*)
+  bool ParseVerifSchResult(); // NOLINT(*)
+  void VerifyGenCode(); // NOLINT(*)
+  //void ParseVerifGenCodeResult(); // NOLINT(*)
+
  private:
   /*! \brief SCoP specific stream to store all polyhedral model/SCoP info temporaily
    * and redirect to base class stream at the end. This is to ensure we have 
    * necessary summary information such number of statements etc before wrting
    * other artifacts in the SCoP file.*/
   std::ostringstream scop_stream;
+
+  std::ostringstream scat_stream;
   /*! \brief To store a unique numeric mapping per variable (read/write variable).
    * The index of the variable in the vector is its unique numeric map. This is 
    * needed as SCoP read/write access matrices need an unique number per read/write variable.*/
@@ -152,9 +174,12 @@ class CodeGenSCoP final : public CodeGenC {
   std::vector<iter_bounds> iterators;
   /*! \brief Storing the iterator sequence on the fly per statement.*/
   std::vector<std::string> curr_iterators;
-  /*! \brief Storing the schedule per statement in 2d + 1 format where `d' is the 
+  /*! \brief Storing the intra-loop schedule per statement in 2d + 1 format where `d' is the 
    * loop nest depth of a given statement.*/ 
   std::unordered_map<std::string, int> schedule;
+  /*! \brief Storing the inter-statement schedule
+   * */
+  int Schedule{0};
   /*! \brief To store the iterator/parameter/constant coefficients in the extent
    * per iterator temporarily. The format is the following:
    * <Parameter/Iterator/Constant_Name, Parameter_Coefficicent>.
@@ -176,6 +201,9 @@ class CodeGenSCoP final : public CodeGenC {
   std::string write_access_matrix;
   /*! \brief Temporarily store the scattering domain matrix as a string per statement.*/
   std::string scattering_matrix;
+
+  /*! \brief Storing pocc related info */
+  std::string POCC_HOME{""};
 };
 
 }  // namespace codegen

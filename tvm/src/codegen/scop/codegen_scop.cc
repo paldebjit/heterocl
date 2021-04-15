@@ -53,7 +53,9 @@ void CodeGenSCoP::AddFunction(LoweredFunc f,
   this->PrintStmt(f->body);
   this->EndScope(func_scope);
 
-  this->WriteSCoP();
+  this->AssembleSCoP();
+
+  this->Verify();
 }
 
 std::string CodeGenSCoP::Finish() {
@@ -152,6 +154,8 @@ void CodeGenSCoP::VisitStmt_(const For* op) {
   std::string min = PrintExpr(op->min);
   std::string vid = AllocVarID(op->loop_var.get());
 
+  this->MapVid(vid);
+
   min_extent_coeff_map.insert({"_CONSTANT_", min});
   ib.LB = make_tuple(vid, min_extent_coeff_map);
   min_extent_coeff_map.clear();
@@ -219,6 +223,9 @@ void CodeGenSCoP::VisitStmt_(const For* op) {
       if (found != schedule.end()) {
           found->second += 1;
       }
+  } else {
+      // This is needed for maintaining schedule among different loop nests in the code
+      Schedule += 1;
   }
 }
 
