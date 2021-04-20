@@ -40,11 +40,35 @@ namespace codegen {
 //          $ $POCC_HOME/bin/pocc --read-scop kernel.scop --output-scop kernel_plutoized.scop --no-codegen
 //                                --pluto --pluto-tile --pluto-tile-scat
 
+void CodeGenSCoP::GenHintSch() {
+
+    chdir("tmp");
+
+    // No tiling
+    std::string _cmd1 = POCC_HOME + "/bin/pocc --read-scop kernel.scop --output-scop -o kernel_plutoized_nt --no-codegen --pluto 2>&1";
+    const char* cmd1 = _cmd1.c_str();
+
+    std::string result;
+    result = this->ExecCmd(cmd1);
+
+    // With fixed tiling size
+    std::string _cmd2 = "echo 4 4 4 4 4 4 4 4 4 4 4 4 > tile.sizes 2>&1";
+    std::string _cmd3 = POCC_HOME + "/bin/pocc --read-scop kernel.scop --output-scop -o kernel_plutoized_t --no-codegen --pluto --pluto-tile --pluto-tile-scat 2>&1";
+    const char* cmd2 = _cmd2.c_str();
+    const char* cmd3 = _cmd3.c_str();
+
+    result = this->ExecCmd(cmd2);
+    result = this->ExecCmd(cmd3);
+
+    chdir("..");
+
+}
+
 void CodeGenSCoP::VerifySchedule() {
     
     chdir("tmp");
 
-    std::string _cmd1 = POCC_HOME + "/bin/pocc --read-scop kernel.scop --check-schedule --verbose > check_schedule.rpt 2>&1 ";
+    std::string _cmd1 = POCC_HOME + "/bin/pocc --read-scop kernel.scop --check-schedule --verbose > check_schedule.rpt 2>&1";
     const char* cmd1 = _cmd1.c_str();
     
     std::string result;
@@ -175,6 +199,7 @@ void CodeGenSCoP::Verify() {
     }
     //this->VerifyGenCode();
     //this->ParseVerifGenCodeResult();
+    this->GenHintSch();
 
 }
 

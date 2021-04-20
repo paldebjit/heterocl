@@ -142,6 +142,7 @@ class CodeGenSCoP final : public CodeGenC {
   bool ParseVerifSchResult(); // NOLINT(*)
   void VerifyGenCode(); // NOLINT(*)
   //void ParseVerifGenCodeResult(); // NOLINT(*)
+  void GenHintSch(); // NOLINT(*)
 
  private:
   /*! \brief SCoP specific stream to store all polyhedral model/SCoP info temporaily

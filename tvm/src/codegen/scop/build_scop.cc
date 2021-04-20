@@ -29,7 +29,7 @@ std::string BuildSCoP(Array<LoweredFunc> funcs) {
   }
   std::string code = cg.Finish();
 
-  if (const auto* f = Registry::Get("tvm_callback_pocc_postproc")) {
+  if (const auto* f = Registry::Get("tvm_callback_scop_postproc")) {
     code = (*f)(code).operator std::string();
   }
   LOG(WARNING) << "SCoP doesn't have runtime, return kernel code";
