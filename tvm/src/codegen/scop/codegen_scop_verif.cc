@@ -199,7 +199,7 @@ void CodeGenSCoP::Verify() {
     }
     //this->VerifyGenCode();
     //this->ParseVerifGenCodeResult();
-    this->GenHintSch();
+    //this->GenHintSch();
 
 }
 

@@ -179,7 +179,8 @@ void CodeGenSCoP::VisitStmt_(const For* op) {
       }
       // Matching constants
       if(this->IsNumeric(token)) {
-          this->UpdateIterCoefficient("_CONSTANT_", sign + token);
+          int token_ = stoi(token) - 1;
+          this->UpdateIterCoefficient("_CONSTANT_", sign + std::to_string(token_));
           continue;
       }
       // Matching iterators and parameters
