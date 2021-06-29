@@ -67,8 +67,8 @@ void CodeGenSCoP::BindThreadIndex(const IterVar& iv) {
   return ;
 }
 
-void CodeGenSCoP::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
-}
+//void CodeGenSCoP::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
+//}
 
 void CodeGenSCoP::PrintVecAddr(const Variable* buffer, Type t,
                                  Expr base, std::ostream& os) {  // NOLINT(*)
@@ -233,6 +233,8 @@ void CodeGenSCoP::VisitStmt_(const For* op) {
 void CodeGenSCoP::VisitStmt_(const Allocate* op) {
   CHECK(!is_zero(op->condition));
   std::string vid = AllocVarID(op->buffer_var.get());
+  std::cout << vid << "\n";
+  this->MapVid(vid);
 
   if (op->new_expr.defined()) {
     CHECK_EQ(op->free_function, "nop");
@@ -247,6 +249,88 @@ void CodeGenSCoP::VisitStmt_(const Allocate* op) {
     if (it != alloc_storage_scope_.end())
       scope = alloc_storage_scope_.at(buffer);
     else scope = "local";
+    
+    // SCoP construction for variable declarations starts here
+    // Allocation variable are as if write access and writing 0
+    bool is_iter_empty = false;
+    if (iterators.empty()) {
+        is_iter_empty = true;
+        iter_bounds ib;
+        std::string min = "0";
+        std::string loop_vid = "dummyiter";
+
+        this->MapVid(loop_vid);
+
+        min_extent_coeff_map.insert({"_CONSTANT_", min}); 
+        ib.LB = make_tuple(loop_vid, min_extent_coeff_map);
+        ib.UB = make_tuple(loop_vid, min_extent_coeff_map);
+        min_extent_coeff_map.clear();
+
+        schedule.insert({loop_vid, 0});
+        curr_iterators.push_back(loop_vid);
+
+        this->PushIterBounds(ib);
+    }
+    
+    // Getting the variable allocation as a statement
+    std::ostringstream dtype;
+    PrintType(op->type, dtype);
+    std::string statement = dtype.str() + " " + vid;
+    if (constant_size > 1) {
+      statement = statement + "[" +  std::to_string(constant_size) +  "]";
+      UpdateReadWriteAccessCoefficient("_CONSTANT_", std::to_string(constant_size));
+    } else {
+      // No need to modify statement as the Allocated Var is a scalar
+      read_write_coeff.insert({});
+    }
+
+    iter_domain_matrix = this->ConstructIterDomMatrix();
+
+    UpdateReadWriteAccessCoefficient(vid);
+    read_write_coeff.clear();
+
+    write_access_matrix = this->ConstructReadWriteAccessMatrix();
+    read_write_variable.clear();
+    read_write_coeff_map.clear();
+
+    read_access_matrix = this->ConstructReadWriteAccessMatrix();
+    read_write_variable.clear();
+    read_write_coeff_map.clear();
+    
+    scattering_matrix = this->ConstructScatteringMatrix();
+
+    std::string back = curr_iterators.back();
+    auto found = schedule.find(back);
+    if(found != schedule.end()) {
+        found->second += 1;
+    }
+
+    this->IncrStmtNum(2);
+    this->SetAccessFuncStat();
+    this->SetScatFuncStat();
+
+    this->ConstructSCoP(statement, 2);
+
+    if (is_iter_empty) {
+        this->PopIterBounds();
+
+        std::string back = curr_iterators.back();
+        auto found = schedule.find(back);
+        if (found != schedule.end()) {
+            schedule.erase(found);
+        }
+        curr_iterators.pop_back();
+        if(!curr_iterators.empty()) {
+            std::string back = curr_iterators.back();
+            auto found = schedule.find(back);
+            if (found != schedule.end()) {
+                found->second += 1;
+            }
+        } else {
+            Schedule += 1;
+        }
+        is_iter_empty = false;
+    }
 
     buf_length_map_[buffer] = constant_size;
   }
@@ -281,12 +365,12 @@ void CodeGenSCoP::VisitStmt_(const Store* op) {
         found->second += 1;
     }
 
-    this->IncrStmtNum();
+    this->IncrStmtNum(1);
     this->SetAccessFuncStat();
     this->SetScatFuncStat();
 
     std::string statement = ref + " = " + value;
-    this->ConstructSCoP(statement);
+    this->ConstructSCoP(statement, 1);
   }
 }
 

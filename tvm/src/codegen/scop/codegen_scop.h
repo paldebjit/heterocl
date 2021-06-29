@@ -53,7 +53,7 @@ class CodeGenSCoP final : public CodeGenC {
   void BindThreadIndex(const IterVar& iv) final;  // NOLINT(*)
   void PrintStorageScope(const std::string& scope, std::ostream& os) final; // NOLINT(*)
   void PrintStorageSync(const Call* op) final;  // NOLINT(*)
-  void PrintType(Type t, std::ostream& os) final; // NOLINT(*)
+  //void PrintType(Type t, std::ostream& os) final; // NOLINT(*)
   void PrintVecStore(const Variable* buffer, Type t, Expr base, const std::string& value) final;  // NOLINT(*)
 
   // the address of load/store
@@ -81,8 +81,8 @@ class CodeGenSCoP final : public CodeGenC {
   std::string CreateDelimiter(std::string symbol); // NOLINT(*)
 
   // To keep track of number of statements in the generated code
-  void IncrStmtNum(); // NOLINT(*)
-  int GetStmtNum(); // NOLINT(*)
+  void IncrStmtNum(int phase); // NOLINT(*)
+  int GetStmtNum(int phase); // NOLINT(*)
 
   // To keep track of Scattering Function per statement (FIXME: Need to make more intelligent)
   void SetScatFuncStat(); // NOLINT(*)
@@ -122,7 +122,7 @@ class CodeGenSCoP final : public CodeGenC {
   std::string WriteMatrix(std::vector<std::vector<std::string>> matrix_);
 
   // Function to construct and write the SCoP
-  void ConstructSCoP(std::string statement); // NOLINT(*)
+  void ConstructSCoP(std::string statement, int phase); // NOLINT(*)
   void AssembleSCoP(); // NOLINT(*)
 
   // Generic string manipulation functions
@@ -149,9 +149,11 @@ class CodeGenSCoP final : public CodeGenC {
    * and redirect to base class stream at the end. This is to ensure we have 
    * necessary summary information such number of statements etc before wrting
    * other artifacts in the SCoP file.*/
-  std::ostringstream scop_stream;
+  std::ostringstream scop_stream_legality;
+  std::ostringstream scop_stream_codegen;
 
-  std::ostringstream scat_stream;
+  std::ostringstream scat_stream_legality;
+  std::ostringstream scat_stream_codegen;
   /*! \brief To store a unique numeric mapping per variable (read/write variable).
    * The index of the variable in the vector is its unique numeric map. This is 
    * needed as SCoP read/write access matrices need an unique number per read/write variable.*/
@@ -188,7 +190,8 @@ class CodeGenSCoP final : public CodeGenC {
   std::unordered_map<std::string, std::string> min_extent_coeff_map;
     
   /*! \brief Total number of statements found in the IR for which SCoP has been written.*/
-  int no_of_stmt{0};
+  int no_of_stmt_1{0};
+  int no_of_stmt_2{0};
   /*! \brief To store scattering function status per statement. */
   bool scat_func_stmt{false};
   /*! \brief To store read/write access function status per statement. */

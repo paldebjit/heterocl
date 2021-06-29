@@ -172,8 +172,11 @@ void CodeGenSCoP::CheckEnv() {
 
 void CodeGenSCoP::WriteSCoP() {
 
-    std::ofstream scop_file;
-    scop_file.open("tmp/kernel.scop");
+    // Write two SCoP files. One for legality verification and another for codegen verification
+    // Write two Identity Sched files. One for legality verification and another for codegen verification
+
+    std::ofstream scop_file_legality;
+    scop_file_legality.open("tmp/kernel.scop");
     scop_file << stream.str();
     scop_file.close();
 
@@ -191,12 +194,12 @@ void CodeGenSCoP::Verify() {
 
     this->WriteSCoP();
     this->CheckEnv();
-    this->VerifySchedule();
-    if (!this->ParseVerifSchResult()) {
-        LOG(FATAL) << "Schedule verification failed. Check tmp/violation.rpt for more details.\n";
-    } else {
-        LOG(INFO) << "Schedule verification passed. Proceeding to verify generated code.\n";
-    }
+    //this->VerifySchedule();
+    //if (!this->ParseVerifSchResult()) {
+    //    LOG(FATAL) << "Schedule verification failed. Check tmp/violation.rpt for more details.\n";
+    //} else {
+    //    LOG(INFO) << "Schedule verification passed. Proceeding to verify generated code.\n";
+    //}
     //this->VerifyGenCode();
     //this->ParseVerifGenCodeResult();
     //this->GenHintSch();

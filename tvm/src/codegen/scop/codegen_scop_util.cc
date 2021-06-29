@@ -24,12 +24,18 @@ std::string CodeGenSCoP::CreateDelimiter(std::string symbol) {
     return delimiter;
 }
 
-void CodeGenSCoP::IncrStmtNum() {
-    no_of_stmt = no_of_stmt + 1;
+void CodeGenSCoP::IncrStmtNum(int phase) {
+    no_of_stmt_2 = no_of_stmt_2 + 1;
+    if (phase == 1) {
+        no_of_stmt_1 = no_of_stmt_1 + 1;
+    }
 }
 
-int CodeGenSCoP::GetStmtNum() {
-    return no_of_stmt;
+int CodeGenSCoP::GetStmtNum(int phase) {
+    if (phase == 1) {
+        return no_of_stmt_1;
+    }
+    return no_of_stmt_2;
 }
 
 void CodeGenSCoP::ResetAccessFuncStat() {
@@ -331,15 +337,19 @@ std::string CodeGenSCoP::ConstructReadWriteAccessMatrix() {
 }
 
 std::string CodeGenSCoP::ConstructIterDomMatrix() {
+    // TODO: i) Change how the row is calculated
+    //      ii) Incorporate how the == can be included
+
     std::string matrix{""};
     // e/i | iterators | parameters | constant
     int no_of_cols = 1 + this->SizeIterBounds() + this->GetParams() + 1;
-    int no_of_rows = 2 * this->SizeIterBounds();
+    //int no_of_rows = 2 * this->SizeIterBounds();
 
-    matrix +=  std::to_string(no_of_rows) + " " + std::to_string(no_of_cols) + "\n";
+    //matrix +=  std::to_string(no_of_rows) + " " + std::to_string(no_of_cols) + "\n";
     
     // +1 for columns to pretty print the comment for iterator inequality
-    std::vector<std::vector<std::string>> matrix_(no_of_rows, std::vector<std::string>(no_of_cols + 1, "0"));
+    //std::vector<std::vector<std::string>> matrix_(no_of_rows, std::vector<std::string>(no_of_cols + 1, "0"));
+    std::vector<std::vector<std::string>> matrix_;
     
     std::vector<iter_bounds> iterators_ = this->GetIterBounds();
     /* <VID      <SYMBOL_NAME     SYMBOL_COEFFICIENT>> */
@@ -351,9 +361,33 @@ std::string CodeGenSCoP::ConstructIterDomMatrix() {
         std::string iterator = std::get<0>(iterators_[i].LB);
         std::unordered_map<std::string, std::string> lb = std::get<1>(iterators_[i].LB);
         std::unordered_map<std::string, std::string> ub = std::get<1>(iterators_[i].UB);
+
+        /* Tackling equality case where LB == UB and hence only need one equality (_CONSTANT_) */
+        auto foundlb = lb.find("_CONSTANT_");
+        auto foundub = ub.find("_CONSTANT_");
+        std::string clb, cub;
+        if (foundlb != lb.end()) {
+            clb = foundlb->second;
+        }
+        if (foundub != ub.end()) {
+            cub = foundub->second;
+        }
+        if (clb == cub) {
+            std::string eq_expr{"## " + iterator + " == " + clb};
+            std::vector<std::string> row1(no_of_cols + 1, "0");
+
+            row1[0] = "0";
+            row1[i + 1] = "1";
+            row1[no_of_cols - 1] = clb;
+            row1[no_of_cols] = eq_expr;
+            matrix_.push_back(row1);
+            row++;
+            continue;
+        }
+
         
         /* Tackling the lower bound */
-        std::string lb_expr{"## " + iterator + " >= "} ;
+        std::string lb_expr{"## " + iterator + " >= "};
         std::vector<std::string> row1(no_of_cols + 1, "0");
         row1[0] = "1";
 
@@ -388,7 +422,8 @@ std::string CodeGenSCoP::ConstructIterDomMatrix() {
         v.clear();
 
         row1[no_of_cols] = lb_expr;
-        matrix_[row] = row1;
+        //matrix_[row] = row1;
+        matrix_.push_back(row1);
         row++;
 
         /* Tackling the upper bound */
@@ -428,54 +463,56 @@ std::string CodeGenSCoP::ConstructIterDomMatrix() {
         v.clear();
 
         row2[no_of_cols] = ub_expr;
-        matrix_[row] = row2;
+        //matrix_[row] = row2;
+        matrix_.push_back(row2);
         row++;
     }
 
+    matrix +=  std::to_string(row) + " " + std::to_string(no_of_cols) + "\n";
     matrix += this->WriteMatrix(matrix_);
 
     return matrix;
 }
 
-void CodeGenSCoP::ConstructSCoP(std::string statement) {
-  scop_stream << CreateDelimiter("=") << "Statement " << this->GetStmtNum() << "\n";
-  scop_stream << CreateDelimiter("-") << this->GetStmtNum() << ".1 Domain" << "\n";
-  scop_stream << "# Iteration domain\n";
-  scop_stream << "1\n";
-  scop_stream << iter_domain_matrix;
-  scop_stream << "\n";
-  scop_stream << CreateDelimiter("-") << this->GetStmtNum() << ".2 Scattering" << "\n";
+void CodeGenSCoP::ConstructSCoP(std::string statement, int phase) {
+  scop_stream_codegen << CreateDelimiter("=") << "Statement " << this->GetStmtNum(2) << "\n";
+  scop_stream_codegen << CreateDelimiter("-") << this->GetStmtNum(2) << ".1 Domain" << "\n";
+  scop_stream_codegen << "# Iteration domain\n";
+  scop_stream_codegen << "1\n";
+  scop_stream_codegen << iter_domain_matrix;
+  scop_stream_codegen << "\n";
+  scop_stream_codegen << CreateDelimiter("-") << this->GetStmtNum(2) << ".2 Scattering" << "\n";
   if (this->GetScatFuncStat()) {
-      scop_stream << "# Scattering function is provided\n";
-      scop_stream << "1\n";
-      scop_stream << "# Scattering function\n";
-      scop_stream << scattering_matrix;
+      scop_stream_codegen << "# Scattering function is provided\n";
+      scop_stream_codegen << "1\n";
+      scop_stream_codegen << "# Scattering function\n";
+      scop_stream_codegen << scattering_matrix;
       scat_stream << scattering_matrix;
       this->ResetScatFuncStat();
   } else {
-      scop_stream << "# Scattering function is not provided\n";
-      scop_stream << "0\n";
+      scop_stream_codegen << "# Scattering function is not provided\n";
+      scop_stream_codegen << "0\n";
   }
-  scop_stream << "\n";
-  scop_stream << CreateDelimiter("-") << this->GetStmtNum() << ".3 Access" << "\n";
+  scop_stream_codegen << "\n";
+  scop_stream_codegen << CreateDelimiter("-") << this->GetStmtNum(2) << ".3 Access" << "\n";
   if (this->GetAccessFuncStat()) {
-      scop_stream << "# Access informations are provided\n";
-      scop_stream << "1\n";
-      scop_stream << "# Read access informations\n";
-      scop_stream << read_access_matrix;
-      //scop_stream << "\n";
-      scop_stream << "# Write access informations\n";
-      scop_stream << write_access_matrix;
-      scop_stream << "\n";
+      scop_stream_codegen << "# Access informations are provided\n";
+      scop_stream_codegen << "1\n";
+      scop_stream_codegen << "# Read access informations\n";
+      scop_stream_codegen << read_access_matrix;
+      //scop_stream_codegen << "\n";
+      scop_stream_codegen << "# Write access informations\n";
+      scop_stream_codegen << write_access_matrix;
+      scop_stream_codegen << "\n";
       this->ResetAccessFuncStat();
   } else {
-      scop_stream << "# Access informations are not provided\n";
-      scop_stream << "0\n";
+      scop_stream_codegen << "# Access informations are not provided\n";
+      scop_stream_codegen << "0\n";
   }
-  scop_stream << CreateDelimiter("-") << this->GetStmtNum() << ".4 Body" << "\n";
-  scop_stream << "# Statement body is provided\n";
-  scop_stream << "1\n";
-  scop_stream << "# Original iterator names\n";
+  scop_stream_codegen << CreateDelimiter("-") << this->GetStmtNum(2) << ".4 Body" << "\n";
+  scop_stream_codegen << "# Statement body is provided\n";
+  scop_stream_codegen << "1\n";
+  scop_stream_codegen << "# Original iterator names\n";
   
   std::string iterator_names{""};
   size_t iterator_num = curr_iterators.size();
@@ -486,15 +523,70 @@ void CodeGenSCoP::ConstructSCoP(std::string statement) {
           iterator_names = iterator_names + curr_iterators[i] + " ";
       }
   }
-  scop_stream << iterator_names <<"\n";
-  scop_stream << "# Statement body\n";
-  scop_stream << statement << ";\n";
-  scop_stream << "\n\n";
+  scop_stream_codegen << iterator_names <<"\n";
+  scop_stream_codegen << "# Statement body\n";
+  scop_stream_codegen << statement << ";\n";
+  scop_stream_codegen << "\n\n";
+
+  if (phsae == 1) {
+	  scop_stream_legality << CreateDelimiter("=") << "Statement " << this->GetStmtNum(1) << "\n";
+	  scop_stream_legality << CreateDelimiter("-") << this->GetStmtNum(1) << ".1 Domain" << "\n";
+	  scop_stream_legality << "# Iteration domain\n";
+	  scop_stream_legality << "1\n";
+	  scop_stream_legality << iter_domain_matrix;
+	  scop_stream_legality << "\n";
+	  scop_stream_legality << CreateDelimiter("-") << this->GetStmtNum(1) << ".2 Scattering" << "\n";
+	  if (this->GetScatFuncStat()) {
+	      scop_stream_legality << "# Scattering function is provided\n";
+	      scop_stream_legality << "1\n";
+	      scop_stream_legality << "# Scattering function\n";
+	      scop_stream_legality << scattering_matrix;
+	      scat_stream << scattering_matrix;
+	      this->ResetScatFuncStat();
+	  } else {
+	      scop_stream_legality << "# Scattering function is not provided\n";
+	      scop_stream_legality << "0\n";
+	  }
+	  scop_stream_legality << "\n";
+	  scop_stream_legality << CreateDelimiter("-") << this->GetStmtNum(1) << ".3 Access" << "\n";
+	  if (this->GetAccessFuncStat()) {
+	      scop_stream_legality << "# Access informations are provided\n";
+	      scop_stream_legality << "1\n";
+	      scop_stream_legality << "# Read access informations\n";
+	      scop_stream_legality << read_access_matrix;
+	      //scop_stream_legality << "\n";
+	      scop_stream_legality << "# Write access informations\n";
+	      scop_stream_legality << write_access_matrix;
+	      scop_stream_legality << "\n";
+	      this->ResetAccessFuncStat();
+	  } else {
+	      scop_stream_legality << "# Access informations are not provided\n";
+	      scop_stream_legality << "0\n";
+	  }
+	  scop_stream_legality << CreateDelimiter("-") << this->GetStmtNum(1) << ".4 Body" << "\n";
+	  scop_stream_legality << "# Statement body is provided\n";
+	  scop_stream_legality << "1\n";
+	  scop_stream_legality << "# Original iterator names\n";
+	  
+	  std::string iterator_names{""};
+	  size_t iterator_num = curr_iterators.size();
+	  for (size_t i = 0; i < iterator_num; i++) {
+	      if (i == iterator_num - 1){
+	          iterator_names = iterator_names + curr_iterators[i];
+	      } else {
+	          iterator_names = iterator_names + curr_iterators[i] + " ";
+	      }
+	  }
+	  scop_stream_legality << iterator_names <<"\n";
+	  scop_stream_legality << "# Statement body\n";
+	  scop_stream_legality << statement << ";\n";
+	  scop_stream_legality << "\n\n";
+  }
 }
 
-void CodeGenSCoP::AssembleSCoP() {
+void CodeGenSCoP::AssembleSCoP(int phase) {
 
-  stream << "# [File generated by HeteroCL]\n";
+  stream << "# [File generated by HeteroCL for Generated Code Verification]\n";
   stream << "\n";
   stream << "SCoP\n";
   stream << "\n";
@@ -518,15 +610,17 @@ void CodeGenSCoP::AssembleSCoP() {
   }
 
   stream << "# Number of statements\n";
-  stream << this->GetStmtNum() << "\n";
+  stream << this->GetStmtNum(2) << "\n";
   stream << "\n";
-  stream << scop_stream.str();
+  stream << scop_stream_codegen.str();
   stream << CreateDelimiter("=") << "Options\n";
+  /* 
+  // Put the following in a seperate .mat files
   stream << "<schedule-candidate>\n";
   stream << this->GetStmtNum() << "\n";
   stream << scat_stream.str();
   stream << "</schedule-candidate>";
- 
+  */
 }
 
 void CodeGenSCoP::UpdateIterCoefficient(std::string s, std::string coeff) {
