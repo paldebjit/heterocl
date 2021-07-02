@@ -53,7 +53,7 @@ void CodeGenSCoP::AddFunction(LoweredFunc f,
   this->PrintStmt(f->body);
   this->EndScope(func_scope);
 
-  this->AssembleSCoP();
+  //this->AssembleSCoP();
 
   this->Verify();
 }
@@ -233,7 +233,6 @@ void CodeGenSCoP::VisitStmt_(const For* op) {
 void CodeGenSCoP::VisitStmt_(const Allocate* op) {
   CHECK(!is_zero(op->condition));
   std::string vid = AllocVarID(op->buffer_var.get());
-  std::cout << vid << "\n";
   this->MapVid(vid);
 
   if (op->new_expr.defined()) {

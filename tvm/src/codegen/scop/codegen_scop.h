@@ -123,7 +123,7 @@ class CodeGenSCoP final : public CodeGenC {
 
   // Function to construct and write the SCoP
   void ConstructSCoP(std::string statement, int phase); // NOLINT(*)
-  void AssembleSCoP(); // NOLINT(*)
+  void AssembleSCoP(int phase); // NOLINT(*)
 
   // Generic string manipulation functions
   std::vector<std::string> Split(const std::string s, char delim); // NOLINT(*)

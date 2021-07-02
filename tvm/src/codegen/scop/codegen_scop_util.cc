@@ -487,8 +487,7 @@ void CodeGenSCoP::ConstructSCoP(std::string statement, int phase) {
       scop_stream_codegen << "1\n";
       scop_stream_codegen << "# Scattering function\n";
       scop_stream_codegen << scattering_matrix;
-      scat_stream << scattering_matrix;
-      this->ResetScatFuncStat();
+      scat_stream_codegen << scattering_matrix;
   } else {
       scop_stream_codegen << "# Scattering function is not provided\n";
       scop_stream_codegen << "0\n";
@@ -504,7 +503,6 @@ void CodeGenSCoP::ConstructSCoP(std::string statement, int phase) {
       scop_stream_codegen << "# Write access informations\n";
       scop_stream_codegen << write_access_matrix;
       scop_stream_codegen << "\n";
-      this->ResetAccessFuncStat();
   } else {
       scop_stream_codegen << "# Access informations are not provided\n";
       scop_stream_codegen << "0\n";
@@ -528,7 +526,7 @@ void CodeGenSCoP::ConstructSCoP(std::string statement, int phase) {
   scop_stream_codegen << statement << ";\n";
   scop_stream_codegen << "\n\n";
 
-  if (phsae == 1) {
+  if (phase == 1) {
 	  scop_stream_legality << CreateDelimiter("=") << "Statement " << this->GetStmtNum(1) << "\n";
 	  scop_stream_legality << CreateDelimiter("-") << this->GetStmtNum(1) << ".1 Domain" << "\n";
 	  scop_stream_legality << "# Iteration domain\n";
@@ -541,8 +539,7 @@ void CodeGenSCoP::ConstructSCoP(std::string statement, int phase) {
 	      scop_stream_legality << "1\n";
 	      scop_stream_legality << "# Scattering function\n";
 	      scop_stream_legality << scattering_matrix;
-	      scat_stream << scattering_matrix;
-	      this->ResetScatFuncStat();
+	      scat_stream_legality << scattering_matrix;
 	  } else {
 	      scop_stream_legality << "# Scattering function is not provided\n";
 	      scop_stream_legality << "0\n";
@@ -558,7 +555,6 @@ void CodeGenSCoP::ConstructSCoP(std::string statement, int phase) {
 	      scop_stream_legality << "# Write access informations\n";
 	      scop_stream_legality << write_access_matrix;
 	      scop_stream_legality << "\n";
-	      this->ResetAccessFuncStat();
 	  } else {
 	      scop_stream_legality << "# Access informations are not provided\n";
 	      scop_stream_legality << "0\n";
@@ -582,6 +578,10 @@ void CodeGenSCoP::ConstructSCoP(std::string statement, int phase) {
 	  scop_stream_legality << statement << ";\n";
 	  scop_stream_legality << "\n\n";
   }
+
+  this->ResetScatFuncStat();
+  this->ResetAccessFuncStat();
+
 }
 
 void CodeGenSCoP::AssembleSCoP(int phase) {
@@ -614,13 +614,6 @@ void CodeGenSCoP::AssembleSCoP(int phase) {
   stream << "\n";
   stream << scop_stream_codegen.str();
   stream << CreateDelimiter("=") << "Options\n";
-  /* 
-  // Put the following in a seperate .mat files
-  stream << "<schedule-candidate>\n";
-  stream << this->GetStmtNum() << "\n";
-  stream << scat_stream.str();
-  stream << "</schedule-candidate>";
-  */
 }
 
 void CodeGenSCoP::UpdateIterCoefficient(std::string s, std::string coeff) {
