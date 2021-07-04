@@ -649,3 +649,25 @@ def build(sch,
         mdev = codegen.build_module(fdevice, str(target_device))
         mhost.import_module(mdev)
     return mhost
+
+def verify(sch,
+           args=None,
+           name="default_function"):
+
+    target = _target.create("scop")
+
+    if not isinstance(sch, schedule._Schedule):
+        raise ValueError("A schedule must be supplied for SCoP extraction and verification")
+    
+    if args is None:
+        raise ValueError("Args must be supplied to build SCoP from the schedule")
+
+    BuildConfig.current = build_config(generate_reuse_buffer=False)
+
+    flist = lower(sch, args, kernel_only=True, name=name)
+    if isinstance(flist, container.LoweredFunc):
+        flist = [flist]
+    fdevice = [ir_pass.LowerIntrin(x, str(target)) for x in flist]
+
+    builder = getattr(codegen, "build_{0}".format(target.target_name))
+    _ = builder(fdevice)

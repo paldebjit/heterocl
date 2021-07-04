@@ -2,7 +2,8 @@
 #pylint: disable=no-member
 import numbers
 from ordered_set import OrderedSet
-from .tvm.build_module import build as _build, lower as _lower
+from .tvm.build_module import build as _build, lower as _lower, verify as _verify
+#from .tvm.build_module import build as _build, lower as _lower
 from .tvm.api import convert, _IterVar
 from .tvm import _api_internal as tvm_api
 from .tvm import schedule as _schedule
@@ -335,6 +336,24 @@ def build(schedule, target=None, name="default_function", stmt=None):
                 stmt = _make.AttrStmt([i.buf, i.tensor], "buffer_bind_scope",
                         call_intrin('handle', 'tvm_tuple', *tpl), stmt)
     return _build(schedule.sch, new_inputs, target=target, name=name, stmt=stmt, schedule_name=schedule.name)
+
+def verify(schedule):
+    """
+    
+    Parameters
+    ----------
+
+    Returns
+    -------
+    """
+    new_inputs = []
+    for i in schedule.inputs:
+        if isinstance(i, Tensor):
+            new_inputs.append(i.tensor.op.output(0))
+        else:
+            new_inputs.append(i.var)
+
+    _verify(schedule.sch, new_inputs)
 
 ##############################################################################
 # Other useful APIs
