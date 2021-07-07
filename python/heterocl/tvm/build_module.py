@@ -329,6 +329,7 @@ def lower(sch,
             return ir_pass.MakeKernelAPI(stmt, name, arg_list)
         else:
             return ir_pass.MakeAPI(stmt, name, arg_list, 0, cfg.restricted_func)
+
     add_lower_pass = cfg.add_lower_pass if cfg.add_lower_pass else []
     lower_phase0 = [x[1] for x in add_lower_pass if x[0] == 0]
     lower_phase1 = [x[1] for x in add_lower_pass if x[0] == 1]
@@ -343,7 +344,9 @@ def lower(sch,
     # Phase 0
     bounds = schedule.InferBound(sch)
     stmt = schedule.ScheduleOps(sch, bounds)
+    #print(stmt)
     stmt = ir_pass.InjectPrefetch(stmt)
+    #print(stmt)
     for f in lower_phase0:
         stmt = f(stmt)
     # Phase 1
@@ -650,13 +653,15 @@ def build(sch,
         mhost.import_module(mdev)
     return mhost
 
-def verify(sch,
+def verify(sch_orig, 
+           sch_opt,
            args=None,
+           target=None,
            name="default_function"):
 
-    target = _target.create("scop")
+    target_ = _target.create("scop")
 
-    if not isinstance(sch, schedule._Schedule):
+    if not isinstance(sch_orig, schedule._Schedule) or not isinstance(sch_opt, schedule._Schedule):
         raise ValueError("A schedule must be supplied for SCoP extraction and verification")
     
     if args is None:
@@ -664,10 +669,20 @@ def verify(sch,
 
     BuildConfig.current = build_config(generate_reuse_buffer=False)
 
-    flist = lower(sch, args, kernel_only=True, name=name)
+    code = build(sch_opt, args, target=target)
+    f = open("tmp/kernel_opt.c", "w")
+    f.write(code)
+    f.close()
+
+    code = build(sch_orig, args, target=target)
+    f = open("tmp/kernel_orig.c", "w")
+    f.write(code)
+    f.close()
+
+    flist = lower(sch_orig, args, kernel_only=True, name=name)
     if isinstance(flist, container.LoweredFunc):
         flist = [flist]
-    fdevice = [ir_pass.LowerIntrin(x, str(target)) for x in flist]
+    fdevice = [ir_pass.LowerIntrin(x, str(target_)) for x in flist]
 
-    builder = getattr(codegen, "build_{0}".format(target.target_name))
+    builder = getattr(codegen, "build_{0}".format(target_.target_name))
     _ = builder(fdevice)

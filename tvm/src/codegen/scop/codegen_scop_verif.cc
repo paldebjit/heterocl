@@ -40,35 +40,22 @@ namespace codegen {
 //          $ $POCC_HOME/bin/pocc --read-scop kernel.scop --output-scop kernel_plutoized.scop --no-codegen
 //                                --pluto --pluto-tile --pluto-tile-scat
 
-void CodeGenSCoP::GenHintSch() {
-
-    chdir("tmp");
-
-    // No tiling
-    std::string _cmd1 = POCC_HOME + "/bin/pocc --read-scop kernel.scop --output-scop -o kernel_plutoized_nt --no-codegen --pluto 2>&1";
-    const char* cmd1 = _cmd1.c_str();
-
-    std::string result;
-    result = this->ExecCmd(cmd1);
-
-    // With fixed tiling size
-    std::string _cmd2 = "echo 4 4 4 4 4 4 4 4 4 4 4 4 > tile.sizes 2>&1";
-    std::string _cmd3 = POCC_HOME + "/bin/pocc --read-scop kernel.scop --output-scop -o kernel_plutoized_t --no-codegen --pluto --pluto-tile --pluto-tile-scat 2>&1";
-    const char* cmd2 = _cmd2.c_str();
-    const char* cmd3 = _cmd3.c_str();
-
-    result = this->ExecCmd(cmd2);
-    result = this->ExecCmd(cmd3);
-
-    chdir("..");
-
-}
-
 void CodeGenSCoP::VerifySchedule() {
     
     chdir("tmp");
 
-    std::string _cmd1 = POCC_HOME + "/bin/pocc --read-scop kernel.scop --check-schedule --verbose > check_schedule.rpt 2>&1";
+    std::vector<std::string> files_to_check = {"legality.scop",
+                                               "kernel.transfo.hclcp"};
+    
+    for (const auto &file: files_to_check) {
+        if (FILE *fp = fopen(file.c_str(), "r")) {
+            fclose(fp);
+        } else {
+            LOG(FATAL) << "Could not find " << file << " in run directory to for schedule verification.\n";
+        }
+    }
+
+    std::string _cmd1 = POCC_HOME + "/generators/scripts/hcl-scop-check-customization-primitives-legality legality.scop kernel.transfo.hclcp > check_schedule.rpt 2>&1";
     const char* cmd1 = _cmd1.c_str();
     
     std::string result;
@@ -82,11 +69,11 @@ bool CodeGenSCoP::ParseVerifSchResult() {
 
     chdir("tmp");
 
-    std::string LINE = "[PoCC] No violation detected in candidate schedule";
+    std::string LINE = "[HCL-check-legality][OK]";
     std::ifstream file("check_schedule.rpt");
     std::string str;
     while(std::getline(file, str)) {
-        if(LINE.compare(str) == 0) {
+        if(str.find(LINE) != std::string::npos) {
             chdir("..");
             return true;
         }
@@ -97,29 +84,68 @@ bool CodeGenSCoP::ParseVerifSchResult() {
 
 }
 
+bool CodeGenSCoP::ParseVerifGenCodeResult() {
+
+    chdir("tmp");
+
+    std::string LINE_F = "[TraceChecker] Traces differ";
+    std::string LINE_P = "[TraceChecker][OK]";
+
+    std::ifstream file("check_codegen.rpt");
+    std::string str;
+    while(std::getline(file, str)) {
+        if(str.find(LINE_P) != std::string::npos) {
+            chdir("..");
+            return true;
+        } else {
+            if(str.find(LINE_F) != std::string::npos) {
+                chdir("..");
+                return false;
+            }
+        }
+    }
+
+    chdir("..");
+    return false;
+}
+
 void CodeGenSCoP::VerifyGenCode() {
+
+    chdir("tmp");
+
+    std::vector<std::string> files_to_check = {"kernel_orig.c",
+                                               "identityscheds_codegen.mat",
+                                               "kernel_opt.c"};
+    
+    for (const auto &file: files_to_check) {
+        if (FILE *fp = fopen(file.c_str(), "r")) {
+            fclose(fp);
+        } else {
+            LOG(FATAL) << "Could not find " << file << " in run directory to for generated code verification.\n";
+        }
+    }
     
     // FIXME: Ask LNP about the shcedule thing. It is an orange box in the Step 1 slide. How does
     //        he want that information to be grabbed in the .mat file?
-    std::string _cmd1 = POCC_HOME + "/bin/pocc kernel.c --codegen-tracer --tc-scheds schedules.kernel.mat -o kernel_tracer.c";
+    std::string _cmd1 = POCC_HOME + "/generators/scripts/hcl-c-function-to-tracer kernel_orig.c identityscheds_codegen.mat";
     const char* cmd1 = _cmd1.c_str();
 
-    std::string _cmd2 = POCC_HOME + "/bin/pocc kernel_transformed.c --codegen-tracer -o kernel_transformed_tracer.c";
+    std::string _cmd2 = POCC_HOME + "/generators/scripts/hcl-c-function-to-tracer kernel_opt.c";
     const char* cmd2 = _cmd2.c_str();
     
-    std::string _cmd3 = "gcc kernel_tracer.c -o kernel_tracer";
+    std::string _cmd3 = "gcc -O2 -lm kernel_orig.c.tracer.c -o tracer_orig";
     const char* cmd3 = _cmd3.c_str();
 
-    std::string _cmd4 = "gcc kernel_transformed_tracer.c -o kernel_transformed_tracer";
+    std::string _cmd4 = "gcc -O2 -lm kernel_opt.c.tracer.c -o tracer_transfo";
     const char* cmd4 = _cmd4.c_str();
 
-    std::string _cmd5 = "./kernel_tracer > kernel.trace";
+    std::string _cmd5 = "ulimit -s unlimited && ./tracer_orig > trace_original.trace.txt";
     const char* cmd5 = _cmd5.c_str();
 
-    std::string _cmd6 = "./kernel_transformed_tracer > kernel_transformed.trace";
+    std::string _cmd6 = "ulimit -s unlimited && ./tracer_transfo > trace_transfo.trace.txt";
     const char* cmd6 = _cmd6.c_str();
 
-    std::string _cmd7 = POCC_HOME + "/generators/scripts/trace-checker kernel.trace kernel_transformed.trace";
+    std::string _cmd7 = POCC_HOME + "/generators/scripts/trace-checker-faster trace_original.trace.txt trace_transfo.trace.txt > check_codegen.rpt 2>&1";
     const char* cmd7 = _cmd7.c_str();
 
     std::string result;
@@ -265,15 +291,18 @@ void CodeGenSCoP::Verify() {
 
     this->WriteSCoP();
     this->CheckEnv();
-    //this->VerifySchedule();
-    //if (!this->ParseVerifSchResult()) {
-    //    LOG(FATAL) << "Schedule verification failed. Check tmp/violation.rpt for more details.\n";
-    //} else {
-    //    LOG(INFO) << "Schedule verification passed. Proceeding to verify generated code.\n";
-    //}
-    //this->VerifyGenCode();
-    //this->ParseVerifGenCodeResult();
-    //this->GenHintSch();
+    this->VerifySchedule();
+    if (!this->ParseVerifSchResult()) {
+        LOG(FATAL) << "Schedule verification failed. Check tmp/violation.rpt for more details.\n";
+    } else {
+        LOG(INFO) << "Schedule verification passed. Proceeding to verify generated code.\n";
+    }
+    this->VerifyGenCode();
+    if(!this->ParseVerifGenCodeResult()) {
+        LOG(FATAL) << "Generated code does not follow the legal schedule. Check tmp/violation.rpt for more details.\n";
+    } else {
+        LOG(INFO) << "Generated code follows the legal schedule.\n";
+    }
 
 }
 
