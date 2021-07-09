@@ -8,7 +8,7 @@ PkgBuildDir = $(HCL_PKG_BUILD)/pocc
 PoCCBuildDir = $(PkgBuildDir)/pocc-devel
 PoCCBin = $(PoCCBuildDir)/pocc-devel/bin
 
-PoCCDistrib = https://svn.code.sf.net/p/pocc-devel/svn/pocc/trunk
+PoCCDistrib = $(POCC_LINK)
 
 ### Rules
 all:: build-pocc
@@ -20,7 +20,9 @@ build-pocc: $(PoCCBuildDir)/.built-pocc
 $(PoCCBuildDir)/.built-pocc:
 	@mkdir -p $(PkgBuildDir); \
 	cd $(PkgBuildDir); \
-	svn co $(PoCCDistrib) $(PoCCBuildDir); \
+	wget $(PoCCDistrib); \
+	tar -xzf pocc.tar.gz;\ 
+	mv pocc $(PoCCBuildDir)
 	cd $(PoCCBuildDir); \
 	./install.sh devel
 	@touch $@
