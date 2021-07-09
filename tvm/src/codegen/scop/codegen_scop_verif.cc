@@ -287,7 +287,20 @@ void CodeGenSCoP::WriteSCoP() {
 
 }
 
-void CodeGenSCoP::Verify() {
+void CodeGenSCoP::VerifyLegality() {
+
+    this->WriteSCoP();
+    this->CheckEnv();
+    this->VerifySchedule();
+    if (!this->ParseVerifSchResult()) {
+        LOG(FATAL) << "Schedule verification failed. Check tmp/violation.rpt for more details.\n";
+    } else {
+        LOG(INFO) << "Schedule verification passed.\n";
+    }
+
+}
+
+void CodeGenSCoP::VerifyE2E() {
 
     this->WriteSCoP();
     this->CheckEnv();

@@ -53,7 +53,6 @@ void CodeGenSCoP::AddFunction(LoweredFunc f,
   this->PrintStmt(f->body);
   this->EndScope(func_scope);
 
-  this->Verify();
 }
 
 std::string CodeGenSCoP::Finish() {

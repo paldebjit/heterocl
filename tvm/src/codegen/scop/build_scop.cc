@@ -36,9 +36,67 @@ std::string BuildSCoP(Array<LoweredFunc> funcs) {
   return code;
 }
 
+std::string BuildPoCCLegality(Array<LoweredFunc> funcs) {
+  using TVM::runtime::Registry;
+
+  CodeAnalysSCoP ca;
+  CodeGenSCoP cg;
+  for (LoweredFunc f : funcs) {
+    // 1st pass: Analyze AST and collect necessary information
+    ca.AddFunction(f);
+    str2tupleMap<std::string, Type> map_arg_type;
+    map_arg_type = ca.Finish();
+
+    // 2nd pass: Generate kernel code
+    cg.AddFunction(f, map_arg_type);
+  }
+  cg.VerifyLegality();
+  std::string code = cg.Finish();
+
+  if (const auto* f = Registry::Get("tvm_callback_scop_postproc")) {
+    code = (*f)(code).operator std::string();
+  }
+  //LOG(WARNING) << "SCoP doesn't have runtime, return kernel code";
+  return code;
+}
+
+std::string BuildPoCCE2E(Array<LoweredFunc> funcs) {
+  using TVM::runtime::Registry;
+
+  CodeAnalysSCoP ca;
+  CodeGenSCoP cg;
+  for (LoweredFunc f : funcs) {
+    // 1st pass: Analyze AST and collect necessary information
+    ca.AddFunction(f);
+    str2tupleMap<std::string, Type> map_arg_type;
+    map_arg_type = ca.Finish();
+
+    // 2nd pass: Generate kernel code
+    cg.AddFunction(f, map_arg_type);
+  }
+  cg.VerifyE2E();
+  std::string code = cg.Finish();
+
+  if (const auto* f = Registry::Get("tvm_callback_scop_postproc")) {
+    code = (*f)(code).operator std::string();
+  }
+  //LOG(WARNING) << "SCoP doesn't have runtime, return kernel code";
+  return code;
+}
+
 TVM_REGISTER_API("codegen.build_scop")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = BuildSCoP(args[0]);
+  });
+
+TVM_REGISTER_API("codegen.build_pocc_legality")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    *rv = BuildPoCCLegality(args[0]);
+  });
+
+TVM_REGISTER_API("codegen.build_pocc_e2e")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    *rv = BuildPoCCE2E(args[0]);
   });
 }  // namespace codegen
 }  // namespace TVM

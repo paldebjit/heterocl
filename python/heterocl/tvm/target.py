@@ -10,8 +10,8 @@ except ImportError as err_msg:
     if _LIB_NAME != "libhcl_runtime.so":
         raise err_msg
 
-FPGA_TARGETS = ['scop', 'merlinc', 'soda', 'soda_xhls', 'vhls', 'ihls', 'vhls_csim', 
-                'opencl', 'xocl', 'aocl', 'rv64_ppac']
+FPGA_TARGETS = ['scop', 'pocc_legality', 'pocc_e2e', 'merlinc', 'soda', 'soda_xhls', 'vhls', 
+                'ihls', 'vhls_csim', 'opencl', 'xocl', 'aocl', 'rv64_ppac']
 
 def _merge_opts(opts, new_opts):
     """Helper function to merge options"""
@@ -31,7 +31,7 @@ class Target(object):
     ----------
     target_name : {"llvm", "cuda", "opencl", "metal", "rocm", "stackvm", "opengl", "ext_dev", "rv64_ppac"}
         The major target name.
-                  {"scop", "merlinc", "soda", "soda_xhls", "vhls"}
+                  {"scop", "merlinc", "soda", "soda_xhls", "vhls", "pocc_legality", "pocc_e2e"}
         The HeteroCL specific target name for FPGAs.
 
     options : list of str, optional

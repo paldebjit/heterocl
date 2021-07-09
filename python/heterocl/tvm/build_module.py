@@ -425,7 +425,7 @@ def build_fpga_kernel(sch, args, target, name="default_function", schedule_name=
     # generate host (device) code / function
     if target == "merlinc":
         BuildConfig.current = build_config(generate_reuse_buffer=False)
-    elif target == "scop":
+    elif target == "scop" or target == "pocc_legality" or target == "pocc_e2e":
         BuildConfig.current = build_config(generate_reuse_buffer=False)
     else:
         BuildConfig.current = build_config()
@@ -656,10 +656,11 @@ def build(sch,
 def verify(sch_orig, 
            sch_opt,
            args=None,
+           mode=0,
            target=None,
            name="default_function"):
 
-    target_ = _target.create("scop")
+    # FIXME: Add mode to expose two step verification explicitly to the user
 
     if not isinstance(sch_orig, schedule._Schedule) or not isinstance(sch_opt, schedule._Schedule):
         raise ValueError("A schedule must be supplied for SCoP extraction and verification")
@@ -669,20 +670,38 @@ def verify(sch_orig,
 
     BuildConfig.current = build_config(generate_reuse_buffer=False)
 
-    code = build(sch_opt, args, target=target)
-    f = open("tmp/kernel_opt.c", "w")
-    f.write(code)
-    f.close()
+    
+    if mode == 0:
+        target_ = _target.create("pocc_legality")
+    
+        flist = lower(sch_orig, args, kernel_only=True, name=name)
+        if isinstance(flist, container.LoweredFunc):
+            flist = [flist]
+        fdevice = [ir_pass.LowerIntrin(x, str(target_)) for x in flist]
 
-    code = build(sch_orig, args, target=target)
-    f = open("tmp/kernel_orig.c", "w")
-    f.write(code)
-    f.close()
+        builder = getattr(codegen, "build_{0}".format(target_.target_name))
+        _ = builder(fdevice)
+        return
+    elif mode == 1:
+        target_ = _target.create("pocc_e2e")
 
-    flist = lower(sch_orig, args, kernel_only=True, name=name)
-    if isinstance(flist, container.LoweredFunc):
-        flist = [flist]
-    fdevice = [ir_pass.LowerIntrin(x, str(target_)) for x in flist]
+        flist = lower(sch_orig, args, kernel_only=True, name=name)
+        if isinstance(flist, container.LoweredFunc):
+            flist = [flist]
+        fdevice = [ir_pass.LowerIntrin(x, str(target_)) for x in flist]
 
-    builder = getattr(codegen, "build_{0}".format(target_.target_name))
-    _ = builder(fdevice)
+        code = build(sch_orig, args, target=target)
+        f = open("tmp/kernel_orig.c", "w")
+        f.write(code)
+        f.close()
+
+        code = build(sch_opt, args, target=target)
+        f = open("tmp/kernel_opt.c", "w")
+        f.write(code)
+        f.close()
+
+        builder = getattr(codegen, "build_{0}".format(target_.target_name))
+        _ = builder(fdevice)
+        return
+    else:
+        raise ValueError("mode = %d is invalid. Valid modes are mode=0 or mode=1.\n" % (mode))

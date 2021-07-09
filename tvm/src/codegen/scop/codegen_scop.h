@@ -134,7 +134,8 @@ class CodeGenSCoP final : public CodeGenC {
 
   // Functions for 2-step verification and PLuTO-based optimization
   std::string ExecCmd(const char* cmd); // NOLINT(*)
-  void Verify(); // NOLINT(*)
+  void VerifyLegality(); // NOLINT(*)
+  void VerifyE2E(); // NOLINT(*)
   void CheckEnv(); // NOLINT(*)
   void WriteSCoP(); // NOLINT(*)
   void VerifySchedule(); // NOLINT(*)
