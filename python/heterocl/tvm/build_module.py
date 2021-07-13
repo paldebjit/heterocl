@@ -653,8 +653,8 @@ def build(sch,
         mhost.import_module(mdev)
     return mhost
 
-def verify(sch_orig, 
-           sch_opt,
+def verify(sch_original, 
+           sch_transformed,
            args=None,
            mode=0,
            target=None,
@@ -662,7 +662,7 @@ def verify(sch_orig,
 
     # FIXME: Add mode to expose two step verification explicitly to the user
 
-    if not isinstance(sch_orig, schedule._Schedule) or not isinstance(sch_opt, schedule._Schedule):
+    if not isinstance(sch_original, schedule._Schedule) or not isinstance(sch_transformed, schedule._Schedule):
         raise ValueError("A schedule must be supplied for SCoP extraction and verification")
     
     if args is None:
@@ -674,7 +674,7 @@ def verify(sch_orig,
     if mode == 0:
         target_ = _target.create("pocc_legality")
     
-        flist = lower(sch_orig, args, kernel_only=True, name=name)
+        flist = lower(sch_original, args, kernel_only=True, name=name)
         if isinstance(flist, container.LoweredFunc):
             flist = [flist]
         fdevice = [ir_pass.LowerIntrin(x, str(target_)) for x in flist]
@@ -685,17 +685,17 @@ def verify(sch_orig,
     elif mode == 1:
         target_ = _target.create("pocc_e2e")
 
-        flist = lower(sch_orig, args, kernel_only=True, name=name)
+        flist = lower(sch_original, args, kernel_only=True, name=name)
         if isinstance(flist, container.LoweredFunc):
             flist = [flist]
         fdevice = [ir_pass.LowerIntrin(x, str(target_)) for x in flist]
 
-        code = build(sch_orig, args, target=target)
+        code = build(sch_original, args, target=target)
         f = open("tmp/kernel_orig.c", "w")
         f.write(code)
         f.close()
 
-        code = build(sch_opt, args, target=target)
+        code = build(sch_transformed, args, target=target)
         f = open("tmp/kernel_opt.c", "w")
         f.write(code)
         f.close()

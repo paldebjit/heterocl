@@ -223,7 +223,7 @@ void CodeGenSCoP::WriteSCoP() {
         scop_file_legality << this->WriteParams() << "\n";
         scop_file_legality << "\n";
     } else {
-        scop_file_legality << "# Parameter names are not provided\n";
+        scop_file_legality << "# Parameter names are provided\n";
         scop_file_legality << this->GetParams() << "\n";
         scop_file_legality << "\n";
     }
@@ -255,7 +255,7 @@ void CodeGenSCoP::WriteSCoP() {
         scop_file_codegen << this->WriteParams() << "\n";
         scop_file_codegen << "\n";
     } else {
-        scop_file_codegen << "# Parameter names are not provided\n";
+        scop_file_codegen << "# Parameter names are provided\n";
         scop_file_codegen << this->GetParams() << "\n";
         scop_file_codegen << "\n";
     }

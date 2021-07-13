@@ -38,6 +38,7 @@ class Schedule(object):
     mod_calls = dict()
     last_stages = OrderedSet([])
     _ids = count(0)
+    sch_original = None
 
     def __init__(self, sch, inputs, outputs, name=""):
         self.id = next(self._ids)

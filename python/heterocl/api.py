@@ -222,6 +222,7 @@ def create_schedule(inputs, func=None, name=""):
             func.__setattr__(op.name, op)
     t = Schedule.last_stages
     ops = [t_._op.op for t_ in t]
+    Schedule.sch_original = _schedule.create_schedule(ops)
     s = Schedule(_schedule.create_schedule(ops), inputs, outputs, name)
     return s
 
@@ -336,7 +337,7 @@ def build(schedule, target=None, name="default_function", stmt=None):
                         call_intrin('handle', 'tvm_tuple', *tpl), stmt)
     return _build(schedule.sch, new_inputs, target=target, name=name, stmt=stmt, schedule_name=schedule.name)
 
-def verify(schedule_orig, schedule_opt, mode=0, target=None):
+def verify(sch_transformed, mode=0, target=None):
     """
     
     Parameters
@@ -347,13 +348,13 @@ def verify(schedule_orig, schedule_opt, mode=0, target=None):
     """
     # FIXME: Add mode to expose two modes of verificatione explicitly to the user
     new_inputs = []
-    for i in schedule_orig.inputs:
+    for i in sch_transformed.inputs:
         if isinstance(i, Tensor):
             new_inputs.append(i.tensor.op.output(0))
         else:
             new_inputs.append(i.var)
 
-    _verify(schedule_orig.sch, schedule_opt.sch, new_inputs, mode=mode, target=target)
+    _verify(Schedule.sch_original, sch_transformed.sch, new_inputs, mode=mode, target=target)
 
 ##############################################################################
 # Other useful APIs
